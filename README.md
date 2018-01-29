@@ -107,7 +107,7 @@ WITH
 GO
 ```
 
-Note that this table is used by all object types, but is dropped and re-created each time hte ```Export-CreateScriptsForObjects``` function is called  for either views, stored procedures or scalar functions (ie for each object).
+Note that this table is used by all object types, but is dropped and re-created each time the ```Export-CreateScriptsForObjects``` function is called  for either views, stored procedures or scalar functions (ie for each object).
 
 ####Are There Any Other Objects Created on The Databases By This Module
 A stored procedure called "usp_ConstructCreateStatementForTable" exists, which is used to generated the ```CREATE TABLE``` statement. The columns are added when the module runs ```AddTableChanges.sql```
