@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?> 
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+<metadata>
+<id>SQLDWSchemaMigrate</id>
+<version>0.0.0.1</version>
+<authors>Richie Lee</authors>
+<description>Migrate Azure SQL Data Warehouse Objects from a source database to a target database.</description>
+<releaseNotes>
+PowerShell Module that will be used to Migrate any changes to from a source Azure Data Warehouse to a target Azure Data Warehouse. 
+Note that data is not migrated over!
+Currently there are 5 Objects supported; tables, views, schemas, stored procedures and scalar functions. 
+The readme of the repo is included in the NuGet package.
+Requires ODBC 13.1 Driver and SQL CMDLINE Utilities be installed.
+https://www.microsoft.com/en-us/download/details.aspx?id=53591
+https://www.microsoft.com/en-us/download/details.aspx?id=53339
+</releaseNotes>
+</metadata>
+<files>
+<file src="SQLDWSchemaMigrate.psd1"/>
+<file src="SQLDWSchemaMigrate.psm1"/>
+<file src="..\readme.md"/>
+<file src="Functions\GetListQuery.ps1" target="Functions"/>
+<file src="Functions\ConnectSqlServer.ps1" target="Functions"/>
+<file src="Functions\DisconnectSqlServer.ps1" target="Functions"/>
+<file src="Functions\RemoveCreateScriptForObjectsFiles.ps1" target="Functions"/>
+<file src="sql\AddTableChanges.sql" target="sql"/>
+<file src="sql\AddTableChanges.sql" target="sql"/>
+<file src="sql\CheckDefinition_Proc.sql" target="sql"/>
+<file src="sql\CheckDefinition_Function.sql" target="sql"/>
+<file src="sql\CheckDefinition_View.sql" target="sql"/>
+<file src="sql\GetCreateStatement_Proc.sql" target="sql"/>
+<file src="sql\GetCreateStatement_Schema.sql" target="sql"/>
+<file src="sql\GetCreateStatement_Table.sql" target="sql"/>
+<file src="sql\GetCreateStatement_View.sql" target="sql"/>
+<file src="sql\usp_ConstructCreateStatementForTable.sql" target="sql"/>
+</files>
+</package>
