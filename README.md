@@ -13,7 +13,7 @@ The following MSI's need to be installed on the box -
 * [Microsoft ODBC Driver 13.1 for SQL Server](https://www.microsoft.com/en-us/download/details.aspx?id=53591)
 * [Microsoft Command Line Utilities 13.1 for SQL Server](https://www.microsoft.com/en-us/download/details.aspx?id=53339) 
 
-SSMS and SQL Server versions may come packaged with their own versions of these components, which may not work! So either uninstall/install these versions, or run on a seperate box. 
+SSMS and SQL Server versions may come packaged with their own versions of these components, which may not work! So either uninstall/install these versions, or run on a seperate box.  
 
 ### What Objects Are Migrated?
 Currently there are 5 Objects supported; 
@@ -107,7 +107,10 @@ WITH
 GO
 ```
 
-Note that this table is used by all object types, but is dropped and re-created each time hte ```Export-CreateScriptsForObjects``` function is called  for either views, stored procedures or scalar functions (ie for each object).
+Note that this table is used by all object types, but is dropped and re-created each time the ```Export-CreateScriptsForObjects``` function is called  for either views, stored procedures or scalar functions (ie for each object).
+
+####Are There Any Other Objects Created on The Databases By This Module
+A stored procedure called "usp_ConstructCreateStatementForTable" exists, which is used to generated the ```CREATE TABLE``` statement. The columns are added when the module runs ```AddTableChanges.sql```
 
 ###Authentication
 Currently, the only authentication method supported by this module is Azure Active Directory Password Authentication. There is a huge amount of documentation on the [Microsoft Docs Website](https://docs.microsoft.com/en-us/azure/sql-database/sql-database-aad-authentication-configure#active-directory-password-authentication). However for brevities sake, in the ```Connect-SqlServer``` function, you can see that the connection string invoked sets the authentication type, as well as user name and password - 
