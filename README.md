@@ -109,10 +109,10 @@ GO
 
 Note that this table is used by all object types, but is dropped and re-created each time the ```Export-CreateScriptsForObjects``` function is called  for either views, stored procedures or scalar functions (ie for each object).
 
-####Are There Any Other Objects Created on The Databases By This Module
+#### Are There Any Other Objects Created on The Databases By This Module
 A stored procedure called "usp_ConstructCreateStatementForTable" exists, which is used to generated the ```CREATE TABLE``` statement. The columns are added when the module runs ```AddTableChanges.sql```
 
-###Authentication
+### Authentication
 Currently, the only authentication method supported by this module is Azure Active Directory Password Authentication. There is a huge amount of documentation on the [Microsoft Docs Website](https://docs.microsoft.com/en-us/azure/sql-database/sql-database-aad-authentication-configure#active-directory-password-authentication). However for brevities sake, in the ```Connect-SqlServer``` function, you can see that the connection string invoked sets the authentication type, as well as user name and password - 
 ```"Server = $SqlServerName; Database = $SqlDatabaseName; Authentication=Active Directory Password; UID = $Username; PWD = $Password;"```
 The files that are created are executed using sqlcmd - throughout ```Export-CreateScriptsForObjects``` you will notice sqlcmd being used multiple times - 
