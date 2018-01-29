@@ -148,7 +148,7 @@ function Export-CreateScriptsForObjects {
                 }
                 if ($ReCreateusp_ConstructCreateStatementForTable -eq 0) {
                     Write-Host "Recreating usp_ConstructCreateStatementForTable on database $DatabaseName"
-                    sqlcmd -i "$PSScriptRoot\sql\usp_ConstructCreateStatementForTable.sql" -S $ServerName -d $DatabaseName -G -U $UserName -P $Password -I  -y 0 -b -j
+                    sqlcmd -i "$PSScriptRoot\sql\usp_ConstructCreateStatementForTable.sql" -S $SqlServerName -d $DatabaseName -G -U $UserName -P $Password -I  -y 0 -b -j
                     if ($LASTEXITCODE -ne 0) {
                         $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
                         Throw $msgToThrow
