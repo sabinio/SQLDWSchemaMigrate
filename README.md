@@ -4,7 +4,7 @@ This repo will store the PowerShell Module that will be used to Migrate any chan
 ## Deploy or Migrate?
 Because SSDT does not support Azure DataWarehouse, the current project in DataServices generates the deployment scripts. However there is not way to migrate these changes from one data warehouse to another. What this module actually does is connect to a data warehouse that contains the source schema and migrates the changes over to the target data warehouse.
 
-Note that data is not migrated over!
+Note that data is not migrated over! 
 
 ## What Needs to Be Installed For Module To Work?
 The following MSI's need to be installed on the box -  
