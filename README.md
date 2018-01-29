@@ -120,7 +120,7 @@ The files that are created are executed using sqlcmd - throughout ```Export-Crea
 
 The -G option defines that sqlcmd uses Azure Active Directory for authentication. -U and -P Can still be used to pass the username and password.
 
-###Permissions
+### Permissions
  Because we are dropping and creating objects, as well as reading sys tables, db_owner on the table should be the minimum.
 
 ### How To
