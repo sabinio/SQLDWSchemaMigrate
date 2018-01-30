@@ -17,6 +17,7 @@ Following MSI's need to be installed -
 * Microsoft Command Line Utilities 13.1 for SQL Server https://www.microsoft.com/en-us/download/details.aspx?id=53339 
 </releaseNotes>
 <projectUrl>https://github.com/sabinio/SQLDWSchemaMigrate</projectUrl>
+<iconUrl>https://raw.githubusercontent.com/sabinio/SQLDWSchemaMigrate/master/SQLDWSchemaMigrate/image/icon.png</iconUrl>
 </metadata>
 <files>
 <file src="SQLDWSchemaMigrate.psd1"/>
