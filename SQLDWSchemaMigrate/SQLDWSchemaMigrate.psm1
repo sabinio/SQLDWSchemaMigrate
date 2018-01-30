@@ -42,9 +42,12 @@ function Export-CreateScriptsForObjects {
         $password,
         [System.Data.SqlClient.SqlConnection]$TargetDbCon,
         $TargetSqlServerName,
-		$sqlTargetDatabaseName) 
-		
+        $sqlTargetDatabaseName,
+        [String]$OutputDirectory ) 
 
+        if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
+            $OutputDirectory = $PSScriptRoot
+    }
 		switch ($ObjectType) {
 		   "StoredProcedures" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Proc.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Proc.sql";  break}
 		   "ScalarFunctions" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Function.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Function.sql";  break}
@@ -73,7 +76,7 @@ function Export-CreateScriptsForObjects {
                 $ObjectId = $ObjectListReader.GetInt32(2)
                 $SchemaId = $ObjectListReader.GetInt32(3)
                 $definition = $ObjectListReader.GetString(4).Replace("'", '')
-                $PathToOutput = ".\$sqlDatabaseName\$SchemaName\$ObjectType\"
+                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$SchemaName\$ObjectType\"
                 if (-not (Test-Path $PathToOutput)) {
                     New-Item $PathToOutput -Type Directory
                 }
@@ -115,13 +118,14 @@ function Export-CreateScriptsForObjects {
                 else {
                     Write-Host "hmmm..."
                     Write-Host $gren
+                    Throw  
                 }
             }
             elseif ($ObjectType -eq "Schemas") {
                 Write-Host "here"
                 $SchemaName = $ObjectListReader.GetString(0)
                 $AuthorisationName = $ObjectListReader.GetString(1)
-                $PathToOutput = ".\$sqlDatabaseName\$SchemaName\$ObjectType\"
+                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$SchemaName\$ObjectType\"
                 if (-not (Test-Path $PathToOutput)) {
                     New-Item $PathToOutput -Type Directory
                 }
@@ -142,7 +146,7 @@ function Export-CreateScriptsForObjects {
                 $SchemaName = $ObjectListReader.GetString(0)
                 $ObjectName = $ObjectListReader.GetString(1)
                 $ObjectId = $ObjectListReader.GetInt32(2)
-                $PathToOutput = ".\$sqlDatabaseName\$SchemaName\$ObjectType\"
+                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$SchemaName\$ObjectType\"
                 if (-not (Test-Path $PathToOutput)) {
                     New-Item $PathToOutput -Type Directory
                 }
@@ -270,4 +274,54 @@ function Export-ColumnChanges{
 	   $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
 	   Throw $msgToThrow
    }
+}
+
+Function Remove-CreateScriptForObjectsFiles {
+    <#
+	.Synopsis
+	Used to generate CREATE statements for objects on source database that can be migratedto target database 
+	.Description
+    Based on object we are migrating, execute a query on source database to get objects of a certain type, and generate CREATe statements. 
+    Where no data loss can occur, we drop and recreate.
+	.Parameter dbcon
+    Connection to source database. Used to get list of all objects on source database (ie executes QueryForObjectList)
+    .Parameter QueryForObjectList
+    Query to list all objects. See Get-ListQuery Function to see query that is passed in.
+    .Parameter ObjectType
+    The type of object we are migrating.
+	.Parameter sqlDatabaseName
+    Used for creating folders
+	.Example
+    Remove-CreateScriptForObjectsFiles $conn $listSchemasQuery "schemas" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
+    Remove-CreateScriptForObjectsFiles $conn $listStoredProceduresQuery "StoredProcedures" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName                                                                                                                                         
+    Remove-CreateScriptForObjectsFiles $conn $listTablesQuery "Tables" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
+    Remove-CreateScriptForObjectsFiles $conn $listFunctionsQuery "ScalarFunctions" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
+    Remove-CreateScriptForObjectsFiles $conn $listViewsQuery "Views" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName  
+    #>
+    param(
+        [System.Data.SqlClient.SqlConnection]$DbCon, 
+        [string]$QueryForObjectList, 
+        [string]$ObjectType,
+        $sqlDatabaseName,
+        [String]$OutputDirectory) 
+
+        
+        if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
+            $OutputDirectory = $PSScriptRoot
+    }
+
+    $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand
+    $GetObjectListCmd.Connection = $DbCon
+    $GetObjectListCmd.CommandText = $QueryForObjectList
+    $ObjectListReader = $GetObjectListCmd.ExecuteReader();
+    if ($ObjectListReader.HasRows) {
+        while ($ObjectListReader.Read()) {
+            $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$($ObjectListReader.GetString(0))\$ObjectType\"
+            if (Test-Path $PathToOutput) {
+                Write-Host "Removing path $PathToOutput"
+                Remove-Item $PathToOutput -Recurse
+            }
+        }
+    }
+    $ObjectListReader.Close()
 }
