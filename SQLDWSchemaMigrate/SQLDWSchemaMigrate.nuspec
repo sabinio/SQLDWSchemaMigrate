@@ -10,10 +10,13 @@ PowerShell Module that will be used to Migrate any changes to from a source Azur
 Note that data is not migrated over!
 Currently there are 5 Objects supported; tables, views, schemas, stored procedures and scalar functions. 
 The readme of the repo is included in the NuGet package.
-Requires ODBC 13.1 Driver and SQL CMDLINE Utilities be installed.
-https://www.microsoft.com/en-us/download/details.aspx?id=53591
-https://www.microsoft.com/en-us/download/details.aspx?id=53339
+Following MSI's need to be installed - 
+* Microsoft Online Services Sign-In Assistant for IT Professionals RTW https://www.microsoft.com/en-us/download/confirmation.aspx?id=28177
+* Microsoft Active Directory Authentication Library for Microsoft SQL Server https://www.microsoft.com/en-us/download/confirmation.aspx?id=48742 
+* Microsoft ODBC Driver 13.1 for SQL Server https://www.microsoft.com/en-us/download/details.aspx?id=53591
+* Microsoft Command Line Utilities 13.1 for SQL Server https://www.microsoft.com/en-us/download/details.aspx?id=53339 
 </releaseNotes>
+<projectUrl>https://github.com/sabinio/SQLDWSchemaMigrate</projectUrl>
 </metadata>
 <files>
 <file src="SQLDWSchemaMigrate.psd1"/>
@@ -22,7 +25,6 @@ https://www.microsoft.com/en-us/download/details.aspx?id=53339
 <file src="Functions\GetListQuery.ps1" target="Functions"/>
 <file src="Functions\ConnectSqlServer.ps1" target="Functions"/>
 <file src="Functions\DisconnectSqlServer.ps1" target="Functions"/>
-<file src="Functions\RemoveCreateScriptForObjectsFiles.ps1" target="Functions"/>
 <file src="sql\AddTableChanges.sql" target="sql"/>
 <file src="sql\AddTableChanges.sql" target="sql"/>
 <file src="sql\CheckDefinition_Proc.sql" target="sql"/>
