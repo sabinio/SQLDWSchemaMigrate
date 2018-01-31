@@ -57,7 +57,7 @@ begin
 	SET @totalnewcolumns = (SELECT count(*) FROM #addedcolumns);
 	SET @secondcounter = 1
 
-	print 'Total new columns for table ' + @currentTable + ' is ' + CONVERT(varchar(10), @totalnewcolumns);
+	PRINT 'Total new columns for table ' + @currentTable + ' is ' + CONVERT(varchar(10), @totalnewcolumns);
 
 	-- Loop through added columns and adding columns in "production" table
 	while (@secondcounter <= @totalnewcolumns) 
