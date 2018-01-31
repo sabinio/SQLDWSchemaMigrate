@@ -32,7 +32,7 @@ Some objects can be dropped and re-created; however where data loss is a possibi
 
 * Connect to source database.
 * Run a query that lists a given object (ie function, view etc.)
-* Foreach object, use sqlcmd to connect to source database and generate a script to dorp/create the object.
+* Foreach object, use sqlcmd to connect to source database and generate a script to drop/create the object.
 * If it needs to be run (see details for each object below) connect to target database and run drop/create script.
 
 Below details individually how objects are migrated. 
@@ -44,7 +44,7 @@ All user schemas are listed from source database and if they do not exist then a
 All scalar functions are listed from source database. The definition is copied from the source to a table created on the target database called "sourceDefinitions". Ii the definitions in this table do not match the defintion of the object on the target database they are dropped and re-created. No data loss can occur.
 
 #### Views
-All scalar functions are listed from source database. The definition is copied from the source to a table created on the target database called "sourceDefinitions". Ii the definitions in this table do not match the defintion of the object on the target database they are dropped and re-created.
+All views are listed from source database. The definition is copied from the source to a table created on the target database called "sourceDefinitions". Ii the definitions in this table do not match the defintion of the object on the target database they are dropped and re-created.
  
 Views in SQL Data Warehouse are metadata only. Consequently the following options are not available:
 
@@ -57,7 +57,7 @@ Views in SQL Data Warehouse are metadata only. Consequently the following option
 Because of this, no data loss can occur.
 
 #### Stored Procedures
-All scalar functions are listed from source database. The definition is copied from the source to a table created on the target database called "sourceDefinitions". Ii the definitions in this table do not match the defintion of the object on the target database they are dropped and re-created. No data loss can occur.
+All stored procedures are listed from source database. The definition is copied from the source to a table created on the target database called "sourceDefinitions". Ii the definitions in this table do not match the defintion of the object on the target database they are dropped and re-created. No data loss can occur.
 
 
 #### Tables
