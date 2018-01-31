@@ -65,7 +65,7 @@ function Export-CreateScriptsForObjects {
     if ($ObjectListReader.HasRows) {
         while ($ObjectListReader.Read()) {
             if ($objectType -in "StoredProcedures", "ScalarFunctions", "Views") {
-                Write-Host "Creating new table in target db to store definitions"
+                Write-Host "Creating new table sourceDefinitions in target db to store definitions"
                 $AddDefinitionListCmd = New-Object System.Data.SqlClient.SqlCommand
                 $AddDefinitionListCmd.Connection = $TargetDbCon
                 $AddDefinitionListCmd.CommandText = "IF OBJECT_ID ('sourceDefinitions', 'U') IS NOT NULL DROP TABLE sourceDefinitions; CREATE TABLE sourceDefinitions (Databasename VARCHAR(8000), schemaName varchar(8000), objectName varchar(8000), object_definition varchar(MAX)) WITH (HEAP)"
@@ -80,7 +80,7 @@ function Export-CreateScriptsForObjects {
                 if (-not (Test-Path $PathToOutput)) {
                     New-Item $PathToOutput -Type Directory
                 }
-                Write-Host "Inserting definition for object [$SchemaName].[$ObjectName]"
+                Write-Host "Inserting definition for object [$SchemaName].[$ObjectName] into sourceDefinitions on target server."
                 $AddDefinitionListCmd.CommandText = "INSERT INTO sourceDefinitions VALUES ('$SqlDatabaseName', '$schemaName', '$objectName', '$definition');"
                 $TargetDefinitionListReader = $AddDefinitionListCmd.ExecuteReader();
                 $TargetDefinitionListReader.Close()
@@ -224,7 +224,7 @@ function Export-ColumnChanges{
    $ObjectListReader = $GetObjectListCmd.ExecuteReader();
    if ($ObjectListReader.HasRows)
    {
-	   Write-Host "Creating new table in target db to store columns"
+	   Write-Host "Creating new table sourceColumns in target db to store column metadata"
 	   $AddColumnListCmd = New-Object System.Data.SqlClient.SqlCommand
 	   $AddColumnListCmd.Connection = $TargetColDbCon
 	   $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int)"
@@ -255,7 +255,7 @@ function Export-ColumnChanges{
 				   $ColumnId = $ColumnListReader.GetInt32(2)
 				   $ColumnTable = $ObjectName
 	   
-				   Write-Host "Inserting column $ColumnName for table $ObjectName"
+				   Write-Host "Inserting metadata of column $ColumnName for table $ObjectName into sourceColumns"
 				   $AddColumnListCmd.CommandText = "INSERT INTO sourceColumns VALUES ('$SqlDatabaseName', '$ObjectName', '$ColumnName', '$ColumnType', '$ColumnId');"
 				   $TargetColumnListReader = $AddColumnListCmd.ExecuteReader();
 				   $TargetColumnListReader.Close()
