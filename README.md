@@ -87,11 +87,23 @@ WITH
 	CLUSTERED COLUMNSTORE INDEX
 )
 ```
+##### What Happens if I Add Column in the Middle of a Table on the Source Database?
+If you add a column in the middle of the table on the source database then the column will just be added to the end of the table on the target. Other than the look of the thing, it does not matter where your columns are in relation to one another. This is especially true for Clustered Columnstore tables. 
+
+##### What Happens If I Rename a Column on the Source Database?
+As of January 2018, according to [Microsoft Docs](https://docs.microsoft.com/en-us/sql/relational-databases/tables/rename-columns-database-engine), you cannot rename columns on Azure SQL Data Warehouse.   
+
+##### What Happens If I Drop A Column on the Source Database?
+Currently the behaviour  is that it is not dropped on the target database. THere's plans to add a "drop in target not in source" type functionality at some point. 
+
+##### What Happens to Table Changes on the Target Database When I Run Apply Changes from Source?
+Basically, you're on your own. The idea of this module is to automate aligning databases from source to target. If you go and make changes to the target database not using this PowerSHell Module then I don't really know how the changes will apply and there's a limit to how much can be anticipated.
+
 ##### StoredDefinitions table
 Views, stored procedures and scalar functions all have their definitions copied from the source database to the target database. This definition is then compared against the definition in sql_modules on the target database. If they do not match then the target database is updated to match the source. This is the schema od the table that is created on the target database - 
 
 ```sql
-
+ 
 CREATE TABLE [dbo].[sourceDefinitions]
 (
 	[Databasename] [varchar](8000) NULL,
@@ -112,7 +124,10 @@ Note that this table is used by all object types, but is dropped and re-created 
 ####Are There Any Other Objects Created on The Databases By This Module
 A stored procedure called "usp_ConstructCreateStatementForTable" exists, which is used to generated the ```CREATE TABLE``` statement. The columns are added when the module runs ```AddTableChanges.sql```
 
-###Authentication
+#### What Happens If I Rename an Object on the Source Database?
+As of January 2018, and as with columns, renaming objects is not supported by Azure SQL Data Warehouse.
+
+### Authentication
 Currently, the only authentication method supported by this module is Azure Active Directory Password Authentication. There is a huge amount of documentation on the [Microsoft Docs Website](https://docs.microsoft.com/en-us/azure/sql-database/sql-database-aad-authentication-configure#active-directory-password-authentication). However for brevities sake, in the ```Connect-SqlServer``` function, you can see that the connection string invoked sets the authentication type, as well as user name and password - 
 ```"Server = $SqlServerName; Database = $SqlDatabaseName; Authentication=Active Directory Password; UID = $Username; PWD = $Password;"```
 The files that are created are executed using sqlcmd - throughout ```Export-CreateScriptsForObjects``` you will notice sqlcmd being used multiple times - 
@@ -122,6 +137,17 @@ The -G option defines that sqlcmd uses Azure Active Directory for authentication
 
 ###Permissions
  Because we are dropping and creating objects, as well as reading sys tables, db_owner on the table should be the minimum.
+
+### Where Are Created Files Stored?
+On both ```Remove-CreateScriptForObjectsFiles``` and ```Export-CreateScriptsForObjects``` there is a parameter called ```$outputDir```. Set this to the location you want the "CREATE" statements saved to. If this parameter is not used then ```$PSScriptRoot``` is used. EG - 
+```powershell
+  if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
+            $OutputDirectory = $PSScriptRoot
+	}
+```
+
+### Are There Any Files That Are Not Created?
+The "ALTER" statements for applying COLUMN changes are not generated. Instead a print statement is generated for logging purposes.
 
 ### How To
 The below script will extract all the differences from the source database and apply them to the target database. This assumes you have both databases created, the relevant permissions setup,and that the source database has some objects to migrate over.  
@@ -154,7 +180,7 @@ $listViewsQuery = Get-ListQuery "Views"
 ##########
 
 Remove-CreateScriptForObjectsFiles $conn $listSchemasQuery "schemas" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
-Remove-CreateScriptForObjectsFiles $conn $listStoredProceduresQuery "StoredProcedures" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName                                                                                                                                         
+Remove-CreateScriptForObjectsFiles $conn $listStoredProceduresQuery "StoredProcedures" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
 Remove-CreateScriptForObjectsFiles $conn $listTablesQuery "Tables" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
 Remove-CreateScriptForObjectsFiles $conn $listFunctionsQuery "ScalarFunctions" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
 Remove-CreateScriptForObjectsFiles $conn $listViewsQuery "Views" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName      
