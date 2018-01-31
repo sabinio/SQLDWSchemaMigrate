@@ -121,8 +121,9 @@ GO
 
 Note that this table is used by all object types, but is dropped and re-created each time the ```Export-CreateScriptsForObjects``` function is called  for either views, stored procedures or scalar functions (ie for each object).
 
-####Are There Any Other Objects Created on The Databases By This Module
+#### Are There Any Other Objects Created on The Databases By This Module
 A stored procedure called "usp_ConstructCreateStatementForTable" exists, which is used to generated the ```CREATE TABLE``` statement. The columns are added when the module runs ```AddTableChanges.sql```
+
 
 #### What Happens If I Rename an Object on the Source Database?
 As of January 2018, and as with columns, renaming objects is not supported by Azure SQL Data Warehouse.
@@ -135,7 +136,7 @@ The files that are created are executed using sqlcmd - throughout ```Export-Crea
 
 The -G option defines that sqlcmd uses Azure Active Directory for authentication. -U and -P Can still be used to pass the username and password.
 
-###Permissions
+### Permissions
  Because we are dropping and creating objects, as well as reading sys tables, db_owner on the table should be the minimum.
 
 ### Where Are Created Files Stored?
