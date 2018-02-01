@@ -38,7 +38,7 @@ BEGIN
               SET @columnOrdinal = @columnOrdinal + 1
 
               SET @columnDefinition = (SELECT '[' + [COLUMN_NAME] + '] [' + [DATA_TYPE] + ']' 
-                                                                     + CASE WHEN [DATA_TYPE] LIKE '%char%' THEN ISNULL('(' + CAST([CHARACTER_MAXIMUM_LENGTH] AS VARCHAR(10)) + ')','') ELSE '' END
+                                                                     + CASE WHEN [DATA_TYPE] LIKE '%char%' THEN ISNULL('(' + CASE WHEN [CHARACTER_MAXIMUM_LENGTH] = '-1' THEN 'MAX'  WHEN [CHARACTER_MAXIMUM_LENGTH] != '-1' THEN CAST([CHARACTER_MAXIMUM_LENGTH] AS VARCHAR(10)) END + ')','') ELSE '' END
                                                                      + CASE WHEN [DATA_TYPE] LIKE '%binary%' THEN ISNULL('(' + CAST([CHARACTER_MAXIMUM_LENGTH] AS VARCHAR(10)) + ')','') ELSE '' END
                                                                      + CASE WHEN [DATA_TYPE] LIKE '%decimal%' THEN ISNULL('(' + CAST([NUMERIC_PRECISION] AS VARCHAR(10)) + ', ' + CAST([NUMERIC_SCALE] AS VARCHAR(10)) + ')','') ELSE '' END
                                                                      + CASE WHEN [DATA_TYPE] LIKE '%numeric%' THEN ISNULL('(' + CAST([NUMERIC_PRECISION] AS VARCHAR(10)) + ', ' + CAST([NUMERIC_SCALE] AS VARCHAR(10)) + ')','') ELSE '' END
@@ -95,7 +95,11 @@ BEGIN
               AND s.[name] = @schemaName
        )
 
+       IF @indexType LIKE 'CLUSTERED%' 
        SET @indexClause = @indexType + ' INDEX'
+       ELSE IF @indexType = 'HEAP'
+       SET @indexClause = @indexType
+
        IF @indexType = 'CLUSTERED'
        BEGIN
               DECLARE @objectID BIGINT = (SELECT t.[object_id]
