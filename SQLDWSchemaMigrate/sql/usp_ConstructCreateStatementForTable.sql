@@ -5,6 +5,7 @@ GO
 
 CREATE PROC [usp_ConstructCreateStatementForTable] @schemaName [VARCHAR](50),@tableName [VARCHAR](255),@nameAppendix [VARCHAR](255),@sqlCmd [VARCHAR](8000) OUT AS
 BEGIN
+       SET NOCOUNT ON
        DECLARE @distributionType AS VARCHAR(50)
        DECLARE @distributionColumn AS VARCHAR(255)
        DECLARE @indexType AS VARCHAR(50)
@@ -14,7 +15,6 @@ BEGIN
        DECLARE @columnList AS VARCHAR(8000)
        DECLARE @distributionClause AS VARCHAR(1000)
        DECLARE @indexClause AS VARCHAR(1000)
-
        --> Construct the 'CREATE TABLE ...' clause
        SET @createClause = 
        'IF  NOT EXISTS (SELECT * FROM sys.objects 
