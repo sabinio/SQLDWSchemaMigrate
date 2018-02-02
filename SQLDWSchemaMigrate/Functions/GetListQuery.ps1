@@ -14,8 +14,8 @@ Function Get-ListQuery {
     param(
         [String]$ObjectType
     )
-    if ($ObjectType -notin ("schemas", "StoredProcedures", "Tables", "Views", "ScalarFunctions")) {
-        $err_msg = "ObjectType parameter not one of the following, so will not return anything - schemas, StoredProcedures, Tables, Views, Functions!"
+    if ($ObjectType -notin ("schemas", "StoredProcedures", "Tables", "Views", "ScalarFunctions", "Columns")) {
+        $err_msg = "ObjectType parameter not one of the following, so will not return anything - schemas, StoredProcedures, Tables, Views, Functions, COlumns!"
         Throw $err_msg
     }
     if ($ObjectType -eq "Schemas") {
@@ -32,6 +32,9 @@ Function Get-ListQuery {
     }
     elseif ($ObjectType -eq "Views") {
         $QueryToReturn = "select sch.name as schema_name, obj.name as object_name, obj.object_id, obj.schema_id, mod.definition from sys.objects obj inner join sys.schemas sch on obj.schema_id = sch.schema_id inner join [sys].[sql_modules] mod on mod.object_id = obj.object_id where obj.type_desc = 'VIEW' and sch.name != 'temp' ORDER BY 1, 2;"
+    }
+    elseif ($ObjectType -eq "Columns") {
+        $QueryToReturn = "SELECT o.name, c.name, c.user_type_id, C.COLUMN_ID FROM sys.columns c INNER JOIN sys.objects o ON c.object_id = o.object_id WHERE o.type = 'U' AND o.name NOT IN ('sourceColumns' ,'sourceColumnsNew','SourceDefinitions')"
     }
     Return $QueryToReturn
 }
