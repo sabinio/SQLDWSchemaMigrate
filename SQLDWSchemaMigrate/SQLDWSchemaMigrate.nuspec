@@ -30,12 +30,12 @@ Following MSI's need to be installed -
 <file src="sql\AddTableChanges.sql" target="sql"/>
 <file src="sql\CheckDefinition_Proc.sql" target="sql"/>
 <file src="sql\CheckDefinition_Function.sql" target="sql"/>
-<file src="sql\CheckDefinition_FunctionNew.sql" target="sql"/>
 <file src="sql\CheckDefinition_View.sql" target="sql"/>
-<file src="sql\CheckDefinition_ViewNew.sql" target="sql"/>
 <file src="sql\CheckSumOfColumns.sql" target="sql"/>
 <file src="sql\GetCreateStatement_Proc.sql" target="sql"/>
 <file src="sql\GetCreateStatement_ProcNew.sql" target="sql"/>
+<file src="sql\GetCreateStatement_FunctionNew.sql" target="sql"/>
+<file src="sql\GetCreateStatement_ViewNew.sql" target="sql"/>
 <file src="sql\GetCreateStatement_Schema.sql" target="sql"/>
 <file src="sql\GetCreateStatement_Table.sql" target="sql"/>
 <file src="sql\GetCreateStatement_View.sql" target="sql"/>
