@@ -1,79 +1,144 @@
- SET NOCOUNT ON;
+
+
+SET NOCOUNT ON;
 
 -- All tables currently in "production db"
-SELECT *, row_number() over (order by (select 0)) as number INTO #Temp1
-FROM( 
-SELECT obj.name as object_name, obj.object_id FROM sys.tables obj inner join sys.schemas sch on obj.schema_id = sch.schema_id 
-WHERE is_external = 0 and obj.name not like '%_Backup%' 
-and obj.name not like '%_BKP%' and obj.name not like '%_tmp%' 
-and obj.name not like '%_wDuplicates%' and sch.name != 'temp'
-and NOT(obj.name LIKE '%Source%')
- ) A
+SELECT *
+	,row_number() OVER (
+		ORDER BY (
+				SELECT 0
+				)
+		) AS number
+INTO #Temp1
+FROM (
+	SELECT DISTINCT obj.name AS object_name
+		,obj.object_id
+	FROM sys.tables obj
+	INNER JOIN sys.schemas sch ON obj.schema_id = sch.schema_id
+	INNER JOIN sourceColumns sc on sc.tablename = obj.name
+	WHERE is_external = 0
+		AND obj.name NOT LIKE '%_Backup%'
+		AND obj.name NOT LIKE '%_BKP%'
+		AND obj.name NOT LIKE '%_tmp%'
+		AND obj.name NOT LIKE '%_wDuplicates%'
+		AND sch.name != 'temp'
+		AND NOT (obj.name LIKE '%Source%')
+		AND obj.name IN (select distinct sc.tablename from sourceColumns sc)
+	) A
 
-DECLARE @TotalTables int 
-DECLARE @counter int 
-DECLARE @currentTable nvarchar(max);
+DELETE FROM #Temp1 WHERE #Temp1.object_name NOT IN (SELECT sc.tablename FROM sourceColumns sc)
 
-SET @TotalTables = (SELECT count(*) FROM #Temp1);
+DECLARE @TotalTables INT
+DECLARE @counter INT
+DECLARE @currentTable NVARCHAR(max);
+
+SET @TotalTables = (
+		SELECT count(*)
+		FROM #Temp1
+		);
 SET @counter = 1
 
 -- Looping through all tables in "production" and checking for deltas
-while (@counter <= @TotalTables) 
-begin
-
+WHILE (@counter <= @TotalTables)
+BEGIN
 	-- Current table in prod db and collecting all column names it should have based on source columns
-	SET @currentTable = (SELECT object_name FROM #Temp1 WHERE number = @counter);
-	SELECT sys.columns.name, sys.columns.user_type_id INTO #tempprodtablecolumns
-	FROM
-		sys.columns
-		JOIN sys.tables ON
-		sys.columns.object_id = sys.tables.object_id
-	WHERE
-	  sys.tables.name = @currentTable;
+	SET @currentTable = (
+			SELECT object_name
+			FROM #Temp1
+			WHERE number = @counter
+			);
 
-	SELECT tablename, colname, user_type_id INTO #tempdevtablecolumns FROM sourceColumns WHERE tablename = @currentTable
+	SELECT sys.columns.name
+		,sys.columns.user_type_id
+	INTO #tempprodtablecolumns
+	FROM sys.columns
+	INNER JOIN sys.tables ON sys.columns.object_id = sys.tables.object_id
+	WHERE sys.tables.name = @currentTable;
+
+	SELECT tablename
+		,colname
+		,user_type_id
+	INTO #tempdevtablecolumns
+	FROM sourceColumns
+	WHERE tablename = @currentTable
 
 	-- Find newly added columns not in "production" into temp table
-	SELECT user_type_id, colname, row_number() over (order by (select 0)) as number INTO #addedcolumns FROM 
-	(SELECT b.*,a.user_type_id missingcolumn 
-	FROM #tempprodtablecolumns a
-	RIGHT OUTER JOIN #tempdevtablecolumns b ON a.name = b.colname) A WHERE missingcolumn is NULL;
+	SELECT user_type_id
+		,colname
+		,row_number() OVER (
+			ORDER BY (
+					SELECT 0
+					)
+			) AS number
+	INTO #addedcolumns
+	FROM (
+		SELECT b.*
+			,a.user_type_id missingcolumn
+		FROM #tempprodtablecolumns a
+		RIGHT JOIN #tempdevtablecolumns b ON a.name = b.colname
+		) A
+	WHERE missingcolumn IS NULL;
 
-	Select * from #tempprodtablecolumns
-	Select * from #tempdevtablecolumns
-	Select * from #addedcolumns
+	SELECT *
+	FROM #tempprodtablecolumns
+
+	SELECT *
+	FROM #tempdevtablecolumns
+
+	SELECT *
+	FROM #addedcolumns
 
 	-- Clean up temp tables
-	drop table #tempprodtablecolumns;
-	drop table #tempdevtablecolumns;
+	DROP TABLE #tempprodtablecolumns;
 
-	DECLARE @totalnewcolumns int 
-	DECLARE @secondcounter int 
-	DECLARE @currentcolname nvarchar(max);
-	DECLARE @currentcoltype nvarchar(max);
-	DECLARE @coltypename nvarchar(max);
-	DECLARE @SQL nvarchar(max);
+	DROP TABLE #tempdevtablecolumns;
 
-	SET @totalnewcolumns = (SELECT count(*) FROM #addedcolumns);
+	DECLARE @totalnewcolumns INT
+	DECLARE @secondcounter INT
+	DECLARE @currentcolname NVARCHAR(max);
+	DECLARE @currentcoltype NVARCHAR(max);
+	DECLARE @coltypename NVARCHAR(max);
+	DECLARE @SQL NVARCHAR(max);
+
+	SET @totalnewcolumns = (
+			SELECT count(*)
+			FROM #addedcolumns
+			);
 	SET @secondcounter = 1
 
-	PRINT 'Total new columns for table ' + @currentTable + ' is ' + CONVERT(varchar(10), @totalnewcolumns);
+	PRINT 'Total new columns for table ' + @currentTable + ' is ' + CONVERT(VARCHAR(10), @totalnewcolumns);
 
 	-- Loop through added columns and adding columns in "production" table
-	while (@secondcounter <= @totalnewcolumns) 
-	begin
-		SET @currentcolname = (SELECT colname from #addedcolumns where number = @secondcounter);
-		SET @currentcoltype = (SELECT user_type_id from #addedcolumns where number = @secondcounter);
-		SET @coltypename = (SELECT name from sys.types where user_type_id = @currentcoltype)
-
+	WHILE (@secondcounter <= @totalnewcolumns)
+	BEGIN
+		SET @currentcolname = (
+				SELECT colname
+				FROM #addedcolumns
+				WHERE number = @secondcounter
+				);
+		SET @currentcoltype = (
+				SELECT user_type_id
+				FROM #addedcolumns
+				WHERE number = @secondcounter
+				);
+		SET @coltypename = (
+				SELECT name
+				FROM sys.types
+				WHERE user_type_id = @currentcoltype
+				)
 		SET @SQL = 'ALTER TABLE ' + @currentTable + ' ADD ' + @currentcolname + ' ' + @coltypename;
-		print '---------- Altering statement: ' + @SQL + ' ---------- ';
-		exec(@SQL);
+
+		PRINT '---------- Altering statement: ' + @SQL + ' ---------- ';
+
+		EXEC (@SQL);
+
 		SET @secondcounter = @secondcounter + 1
-	end
+	END
 
-	DROP table #addedcolumns
-	set @counter = @counter + 1;
-end
+	DROP TABLE #addedcolumns
 
-DROP table #Temp1;
+	SET @counter = @counter + 1;
+END
+
+DROP TABLE #Temp1;
+

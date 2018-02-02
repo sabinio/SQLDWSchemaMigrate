@@ -49,9 +49,9 @@ function Export-CreateScriptsForObjects {
     }
     
     switch ($ObjectType) {
-        "StoredProcedures" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ProcNew.sql";$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Proc.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Proc.sql"; break}
-        "ScalarFunctions" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ProcNew.sql";$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Function.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Function.sql"; break}
-        "Views" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ViewNew.sql";$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_View.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_View.sql"; break}
+        "StoredProcedures" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ProcNew.sql"; $FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Proc.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Proc.sql"; break}
+        "ScalarFunctions" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ProcNew.sql"; $FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Function.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Function.sql"; break}
+        "Views" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ViewNew.sql"; $FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_View.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_View.sql"; break}
         "Schemas" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Schema.sql"; break}
         "Tables" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Table.sql"; break}
         default {"Something else happened"; break}
@@ -103,19 +103,11 @@ function Export-CreateScriptsForObjects {
                 
                 }
                 elseif ($gren -match 'different') {
-                    # IDEA!
-                    # REPLACE THIS SQLCMD EXECUTION WITH JUST CREATING SQL FILE AS WE HAVE THE INFO ALREADY IN THIS LOOP.
-                    # THEN WE CAN JUST EXECUTE AT THE END.
                     if (-not ($FilePaths -contains $PathToOutput)) {
                         $FilePaths.Add($PathToOutput)
                     }
-                    (Get-Content $FileWithGetCreateQueryNew).Replace("OBJECTPROPERTY('object_id(`$(schema_name).`$(object_name)')","OBJECTPROPERTY('object_id($SchemaName.$ObjectName'").Replace('$(object_name)', $ObjectName).Replace('$(schema_name)', $SchemaName).Replace('$(createStatement)', $definitionForFile)  | Set-Content $PathToOutput$ObjectName'_Create'.sql
                     Write-Host "Exporting CREATE statement for [$SchemaName].[$ObjectName] of type $ObjectType as definitions do not match."
-                    # sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId schema_id=$SchemaId  -y 0 -b -j
-                    # if ($LASTEXITCODE -ne 0) {
-                    #     $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                    #     Throw $msgToThrow
-                    # }
+                    (Get-Content $FileWithGetCreateQueryNew).Replace("OBJECTPROPERTY('object_id(`$(schema_name).`$(object_name)')", "OBJECTPROPERTY('object_id($SchemaName.$ObjectName'").Replace('$(object_name)', $ObjectName).Replace('$(schema_name)', $SchemaName).Replace('$(createStatement)', $definitionForFile)  | Set-Content $PathToOutput$ObjectName'_Create'.sql
                 }
                 else {
                     Write-Host "hmmm..."
@@ -225,8 +217,12 @@ function Export-ColumnChanges {
         $sqlTargetDatabaseName,
         [System.Data.SqlClient.SqlConnection]$TargetColDbCon,
         $userName,
-        $password
-	   ) 
+        $Password,
+        [String]$OutputDirectory ) 
+
+    if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
+        $OutputDirectory = $PSScriptRoot
+    }
     Write-Host "Starting source table connection"
     $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand
     $GetObjectListCmd.Connection = $DbCon
@@ -243,24 +239,27 @@ function Export-ColumnChanges {
         while ($ObjectListReader.Read()) {
             $ColumnTable = $ObjectListReader.GetString(1)
             $ObjectId = $ObjectListReader.GetInt32(2)
-            #IDEA!
-            #DON'T LOOP THROUGH COLUMNS; JUST CREATE FILES TO EXECUTE
-            Write-Host "Operating on table: $ObjectName "
+            Write-Host "Operating on table: $ColumnTable "
             $GetColumnListCmd = New-Object System.Data.SqlClient.SqlCommand
             $GetColumnListCmd.Connection = $ColDbCon
             $GetColumnListCmd.CommandText = "select name, user_type_id, column_id from sys.columns where object_id = $ObjectId"
             $ColumnListReader = $GetColumnListCmd.ExecuteReader();
-            Looping through all columns of the table to add to target db
+            #Looping through all columns of the table to add to target db
             If ($ColumnListReader.HasRows) {
+                $InsertStatement = "SET NOCOUNT ON `n INSERT INTO sourceColumns (databasename, tablename, colname,user_type_id, column_id) "
                 while ($ColumnListReader.Read()) {
-                    Write-Host "Found column for table $ObjectName"
                     $ColumnName = $ColumnListReader.GetString(0)
                     $ColumnType = $ColumnListReader.GetInt32(1)
                     $ColumnId = $ColumnListReader.GetInt32(2)
-                    Write-Host "Inserting metadata of column $ColumnName for table $ColumnTable into sourceColumns"
-                    $AddColumnListCmd.CommandText = "INSERT INTO sourceColumns VALUES ('$SqlDatabaseName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId');"
-                    $TargetColumnListReader = $AddColumnListCmd.ExecuteReader();
-                    $TargetColumnListReader.Close()
+                    $InsertStatement = $InsertStatement + "SELECT '$SqlDatabaseName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId' UNION ALL `n"
+                }
+                $InsertStatement = $InsertStatement.Substring(0, $InsertStatement.Length - 10)
+                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\InsertStatement_$ColumnTable.sql"
+                Set-Content $PathToOutput $InsertStatement
+                sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+                if ($LASTEXITCODE -ne 0) {
+                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+                    Throw $msgToThrow
                 }
             }
             $ColumnListReader.Close()
@@ -270,10 +269,27 @@ function Export-ColumnChanges {
     $ObjectListReader.Close()
     $ColumnListReader.Close()
     $TargetColumnListReader.Close()
-    sqlcmd -i $PSScriptRoot\sql\AddTableChanges.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+    $checkSumOfColumns = sqlcmd -i $PSScriptRoot\sql\CheckSumOfColumns.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j -r0 -k1
     if ($LASTEXITCODE -ne 0) {
         $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
         Throw $msgToThrow
+    }
+    if ($checkSumOfColumns -match 'moreInSourceThanInTarget') {
+        Write-Host "More columns in source database than target database. Determining which tables are affected."
+        sqlcmd -i $PSScriptRoot\sql\SetTablesWithDelta.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+        if ($LASTEXITCODE -ne 0) {
+            $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+            Throw $msgToThrow
+        }
+        Write-Host "Adding missing columns, this can take some time..."
+        sqlcmd -i $PSScriptRoot\sql\AddTableChanges.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+        if ($LASTEXITCODE -ne 0) {
+            $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+            Throw $msgToThrow
+        }
+    }
+    if ($checkSumOfColumns -match 'sameInSourceAndTarget') {
+        Write-Host "Sums of columns in both source and target databases match..."
     }
 }
 
