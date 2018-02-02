@@ -47,10 +47,11 @@ function Export-CreateScriptsForObjects {
     if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
         $OutputDirectory = $PSScriptRoot
     }
+    
     switch ($ObjectType) {
-        "StoredProcedures" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Proc.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Proc.sql"; break}
-        "ScalarFunctions" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Function.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Function.sql"; break}
-        "Views" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_View.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_View.sql"; break}
+        "StoredProcedures" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ProcNew.sql";$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Proc.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Proc.sql"; break}
+        "ScalarFunctions" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ProcNew.sql";$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Function.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Function.sql"; break}
+        "Views" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ViewNew.sql";$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_View.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_View.sql"; break}
         "Schemas" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Schema.sql"; break}
         "Tables" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Table.sql"; break}
         default {"Something else happened"; break}
@@ -76,10 +77,8 @@ function Export-CreateScriptsForObjects {
                 $ObjectId = $ObjectListReader.GetInt32(2)
                 $SchemaId = $ObjectListReader.GetInt32(3)
                 $definition = $ObjectListReader.GetString(4).Replace("'", '')
+                $definitionForFile = $ObjectListReader.GetString(4)
                 $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$SchemaName\$ObjectType\"
-                If (-not ($FilePaths -contains $PathToOutput)) {
-                    $FilePaths.Add($PathToOutput)
-                }
                 if (-not (Test-Path $PathToOutput)) {
                     New-Item $PathToOutput -Type Directory
                 }
@@ -104,12 +103,19 @@ function Export-CreateScriptsForObjects {
                 
                 }
                 elseif ($gren -match 'different') {
-                    Write-Host "Exporting CREATE statement for [$SchemaName].[$ObjectName] of type $ObjectType as definitions do not match."
-                    sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId schema_id=$SchemaId  -y 0 -b -j
-                    if ($LASTEXITCODE -ne 0) {
-                        $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                        Throw $msgToThrow
+                    # IDEA!
+                    # REPLACE THIS SQLCMD EXECUTION WITH JUST CREATING SQL FILE AS WE HAVE THE INFO ALREADY IN THIS LOOP.
+                    # THEN WE CAN JUST EXECUTE AT THE END.
+                    if (-not ($FilePaths -contains $PathToOutput)) {
+                        $FilePaths.Add($PathToOutput)
                     }
+                    (Get-Content $FileWithGetCreateQueryNew).Replace("OBJECTPROPERTY('object_id(`$(schema_name).`$(object_name)')","OBJECTPROPERTY('object_id($SchemaName.$ObjectName'").Replace('$(object_name)', $ObjectName).Replace('$(schema_name)', $SchemaName).Replace('$(createStatement)', $definitionForFile)  | Set-Content $PathToOutput$ObjectName'_Create'.sql
+                    Write-Host "Exporting CREATE statement for [$SchemaName].[$ObjectName] of type $ObjectType as definitions do not match."
+                    # sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId schema_id=$SchemaId  -y 0 -b -j
+                    # if ($LASTEXITCODE -ne 0) {
+                    #     $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+                    #     Throw $msgToThrow
+                    # }
                 }
                 else {
                     Write-Host "hmmm..."
@@ -233,30 +239,26 @@ function Export-ColumnChanges {
         $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int)"
         $TargetColumnListReader = $AddColumnListCmd.ExecuteReader();
         $TargetColumnListReader.Close();
-
         # Looping through all tables in source db
         while ($ObjectListReader.Read()) {
-            $SchemaName = $ObjectListReader.GetString(0)
-            $ObjectName = $ObjectListReader.GetString(1)
+            $ColumnTable = $ObjectListReader.GetString(1)
             $ObjectId = $ObjectListReader.GetInt32(2)
-
+            #IDEA!
+            #DON'T LOOP THROUGH COLUMNS; JUST CREATE FILES TO EXECUTE
             Write-Host "Operating on table: $ObjectName "
             $GetColumnListCmd = New-Object System.Data.SqlClient.SqlCommand
             $GetColumnListCmd.Connection = $ColDbCon
             $GetColumnListCmd.CommandText = "select name, user_type_id, column_id from sys.columns where object_id = $ObjectId"
             $ColumnListReader = $GetColumnListCmd.ExecuteReader();
-
-            # Looping through all columns of the table to add to target db
+            Looping through all columns of the table to add to target db
             If ($ColumnListReader.HasRows) {
                 while ($ColumnListReader.Read()) {
                     Write-Host "Found column for table $ObjectName"
                     $ColumnName = $ColumnListReader.GetString(0)
                     $ColumnType = $ColumnListReader.GetInt32(1)
                     $ColumnId = $ColumnListReader.GetInt32(2)
-                    $ColumnTable = $ObjectName
-	   
-                    Write-Host "Inserting metadata of column $ColumnName for table $ObjectName into sourceColumns"
-                    $AddColumnListCmd.CommandText = "INSERT INTO sourceColumns VALUES ('$SqlDatabaseName', '$ObjectName', '$ColumnName', '$ColumnType', '$ColumnId');"
+                    Write-Host "Inserting metadata of column $ColumnName for table $ColumnTable into sourceColumns"
+                    $AddColumnListCmd.CommandText = "INSERT INTO sourceColumns VALUES ('$SqlDatabaseName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId');"
                     $TargetColumnListReader = $AddColumnListCmd.ExecuteReader();
                     $TargetColumnListReader.Close()
                 }
