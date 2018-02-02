@@ -235,40 +235,24 @@ function Export-ColumnChanges {
         $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int)"
         $TargetColumnListReader = $AddColumnListCmd.ExecuteReader();
         $TargetColumnListReader.Close();
-        # Looping through all tables in source db
+        $InsertStatement = "SET NOCOUNT ON `n INSERT INTO sourceColumns (databasename, tablename, colname,user_type_id, column_id) "
         while ($ObjectListReader.Read()) {
-            $ColumnTable = $ObjectListReader.GetString(1)
-            $ObjectId = $ObjectListReader.GetInt32(2)
-            Write-Host "Operating on table: $ColumnTable "
-            $GetColumnListCmd = New-Object System.Data.SqlClient.SqlCommand
-            $GetColumnListCmd.Connection = $ColDbCon
-            $GetColumnListCmd.CommandText = "select name, user_type_id, column_id from sys.columns where object_id = $ObjectId"
-            $ColumnListReader = $GetColumnListCmd.ExecuteReader();
-            #Looping through all columns of the table to add to target db
-            If ($ColumnListReader.HasRows) {
-                $InsertStatement = "SET NOCOUNT ON `n INSERT INTO sourceColumns (databasename, tablename, colname,user_type_id, column_id) "
-                while ($ColumnListReader.Read()) {
-                    $ColumnName = $ColumnListReader.GetString(0)
-                    $ColumnType = $ColumnListReader.GetInt32(1)
-                    $ColumnId = $ColumnListReader.GetInt32(2)
-                    $InsertStatement = $InsertStatement + "SELECT '$SqlDatabaseName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId' UNION ALL `n"
-                }
-                $InsertStatement = $InsertStatement.Substring(0, $InsertStatement.Length - 10)
-                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\InsertStatement_$ColumnTable.sql"
-                Set-Content $PathToOutput $InsertStatement
-                sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
-                if ($LASTEXITCODE -ne 0) {
-                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                    Throw $msgToThrow
-                }
-            }
-            $ColumnListReader.Close()
-            $TargetColumnListReader.Close()
+            $ColumnTable = $ObjectListReader.GetString(0)
+            $ColumnName = $ObjectListReader.GetString(1)
+            $ColumnType = $ObjectListReader.GetInt32(2)
+            $ColumnId = $ObjectListReader.GetInt32(3)
+            $InsertStatement = $InsertStatement + "SELECT '$SqlDatabaseName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId' UNION ALL `n"
+        }
+        $InsertStatement = $InsertStatement.Substring(0, $InsertStatement.Length - 10)
+        $PathToOutput = "$OutputDirectory\$sqlDatabaseName\InsertStatement_$sqlDatabaseName.sql"
+        Set-Content $PathToOutput $InsertStatement
+        sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+        if ($LASTEXITCODE -ne 0) {
+            $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+            Throw $msgToThrow
         }
     }
     $ObjectListReader.Close()
-    $ColumnListReader.Close()
-    $TargetColumnListReader.Close()
     $checkSumOfColumns = sqlcmd -i $PSScriptRoot\sql\CheckSumOfColumns.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j -r0 -k1
     if ($LASTEXITCODE -ne 0) {
         $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
@@ -292,7 +276,6 @@ function Export-ColumnChanges {
         Write-Host "Sums of columns in both source and target databases match..."
     }
 }
-
 Function Remove-CreateScriptForObjectsFiles {
     <#
 	.Synopsis
