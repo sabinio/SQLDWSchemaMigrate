@@ -60,17 +60,15 @@ function Export-CreateScriptsForObjects {
     $ReCreateusp_ConstructCreateStatementForTable = 0
     [System.Collections.ArrayList]$FilePaths = @()
     Write-Host "Creating new table sourceDefinitions in target db to store definitions"
-    $AddDefinitionListCmd = New-Object System.Data.SqlClient.SqlCommand
-    $AddDefinitionListCmd.Connection = $TargetDbCon
-    if ($objectType -in "StoredProcedures", "ScalarFunctions", "Views") {
-        $AddDefinitionListCmd.CommandText = "IF OBJECT_ID ('sourceDefinitions', 'U') IS NOT NULL DROP TABLE sourceDefinitions; CREATE TABLE sourceDefinitions (Databasename VARCHAR(8000), schemaName varchar(8000), objectName varchar(8000), object_definition varchar(MAX)) WITH (HEAP)"
+    if ($objectType -ne $schemas) {
+        $AddDefinitionListCmd = New-Object System.Data.SqlClient.SqlCommand
+        $AddDefinitionListCmd.Connection = $TargetDbCon
+        if ($objectType -in "StoredProcedures", "ScalarFunctions", "Views") {
+            $AddDefinitionListCmd.CommandText = "IF OBJECT_ID ('sourceDefinitions', 'U') IS NOT NULL DROP TABLE sourceDefinitions; CREATE TABLE sourceDefinitions (Databasename VARCHAR(8000), schemaName varchar(8000), objectName varchar(8000), object_definition varchar(MAX)) WITH (HEAP)"
+            $TargetDefinitionListReader = $AddDefinitionListCmd.ExecuteReader();
+            $TargetDefinitionListReader.Close();
+        }
     }
-    elseif ($objectTpye -eq "Tables") {
-        $AddDefinitionListCmd.CommandText = "IF OBJECT_ID ('sourceTables', 'U') IS NOT NULL DROP TABLE sourceDefinitions; CREATE TABLE sourceTables (Databasename VARCHAR(8000), schemaName varchar(8000), objectName varchar(8000) WITH (HEAP)"
-    
-    }
-    $TargetDefinitionListReader = $AddDefinitionListCmd.ExecuteReader();
-    $TargetDefinitionListReader.Close();
     $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand
     $GetObjectListCmd.Connection = $DbCon
     $GetObjectListCmd.CommandText = $QueryForObjectList
@@ -154,28 +152,28 @@ function Export-CreateScriptsForObjects {
                     }
                     $ReCreateusp_ConstructCreateStatementForTable = 1
                 }
-
-
-                #new
-                Write-Host "Inserting [$SchemaName].[$ObjectName] into sourceTables on target server."
-                $AddDefinitionListCmd.CommandText = "INSERT INTO sourceDefinitions VALUES ('$SqlDatabaseName', '$schemaName', '$objectName');"
-                $TargetDefinitionListReader = $AddDefinitionListCmd.ExecuteReader();
-                $TargetDefinitionListReader.Close()
-
-                Write-Host "Generate list of tables that need creating..."
-                sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId -y 0 -b -j 
-                if ($LASTEXITCODE -ne 0) {
-                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                    Throw $msgToThrow
+                Write-Host "Checking if [$SchemaName].[$ObjectName] exists on target server..."
+                $AddDefinitionListCmd.CommandText = "
+                if not exists
+                (
+                    select obj.name as object_name from sys.tables obj inner join sys.schemas sch on obj.schema_id = sch.schema_id 
+                    where sch.name = '$schemaName' and obj.name = '$objectName'
+                )
+                SELECT 1
+                ELSE
+                SELECT 0
+                "
+                $TableExists = $AddDefinitionListCmd.ExecuteScalar();
+                if ($TableExists -eq 1) {
+                    Write-Host "Generating CREATE TABLE Script for [$SchemaName].[$ObjectName]..."
+                    sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId -y 0 -b -j 
+                    if ($LASTEXITCODE -ne 0) {
+                        $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+                        Throw $msgToThrow
+                    }
                 }
-                #end of new
-
-
-                Write-Host "Exporting CREATE statement for [$SchemaName].[$Objectname] of type $ObjectType"
-                sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId -y 0 -b -j 
-                if ($LASTEXITCODE -ne 0) {
-                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                    Throw $msgToThrow
+                elseif ($tableExists -eq 0){
+                    Write-Host "Table [$SchemaName].[$ObjectName] already exists..."
                 }
             }
         }
@@ -183,22 +181,26 @@ function Export-CreateScriptsForObjects {
     if ($objectType -in "StoredProcedures", "ScalarFunctions", "Views", "Tables") {
         foreach ($filePath in $FilePaths) {
             $schema = @(Get-ChildItem $filePath"\*_Create*")
-            Write-Host "Executing scripts in folder $filePath"
-            sqlcmd -i $schema -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
-            if ($LASTEXITCODE -ne 0) {
-                $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                Throw $msgToThrow
+            if ($schema.count -gt 0) {
+                Write-Host "Executing scripts in folder $filePath"
+                sqlcmd -i $schema -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+                if ($LASTEXITCODE -ne 0) {
+                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+                    Throw $msgToThrow
+                }
             }
         }
     }
     if ($objectType -eq "Schemas") {
         foreach ($filePath in $FilePaths) {
             $schema = @(Get-ChildItem $filePath"\*_Create*")
-            Write-Host "Executing on target database $sqlTargetDatabaseName"
-            sqlcmd -i $schema -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
-            if ($LASTEXITCODE -ne 0) {
-                $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                Throw $msgToThrow
+            if ($schema.count -gt 0) {
+                Write-Host "Executing on target database $sqlTargetDatabaseName"
+                sqlcmd -i $schema -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+                if ($LASTEXITCODE -ne 0) {
+                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+                    Throw $msgToThrow
+                }
             }
         }
     }
