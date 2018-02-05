@@ -155,14 +155,14 @@ function Export-CreateScriptsForObjects {
                     $ReCreateusp_ConstructCreateStatementForTable = 1
                 }
 
-                
+
                 #new
                 Write-Host "Inserting [$SchemaName].[$ObjectName] into sourceTables on target server."
                 $AddDefinitionListCmd.CommandText = "INSERT INTO sourceDefinitions VALUES ('$SqlDatabaseName', '$schemaName', '$objectName');"
                 $TargetDefinitionListReader = $AddDefinitionListCmd.ExecuteReader();
                 $TargetDefinitionListReader.Close()
 
-                Write-Host "Gernerate list of tables that need creating..."
+                Write-Host "Generate list of tables that need creating..."
                 sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId -y 0 -b -j 
                 if ($LASTEXITCODE -ne 0) {
                     $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
