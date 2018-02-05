@@ -1,4 +1,4 @@
-Function Get-ListQuery {
+Function Get-ExistQuery {
      <#
     .Synopsis
     Return query to list objects
@@ -25,13 +25,13 @@ Function Get-ListQuery {
         $QueryToReturn = "select sch.name as schema_name, obj.name as object_name, obj.object_id, obj.schema_id, mod.definition from sys.objects obj inner join sys.schemas sch on obj.schema_id = sch.schema_id inner join [sys].[sql_modules] mod on mod.object_id = obj.object_id where obj.type_desc = 'SQL_STORED_PROCEDURE' and sch.name != 'temp' ORDER BY 1, 2;"
     }
     elseif ($ObjectType -eq "Tables") {
-        $QueryToReturn = "select sch.name as schema_name, obj.name as object_name, obj.object_id from sys.tables obj inner join sys.schemas sch on obj.schema_id = sch.schema_id where is_external = 0 and obj.name not like '%_Backup%' and obj.name not like '%_BKP%' and obj.name not like '%_tmp%' and obj.name not like '%_wDuplicates%' and sch.name != 'temp' ORDER BY 1, 2;"
+        $QueryToReturn = "select sch.name as schema_name, obj.name as object_name from sys.tables obj inner join sys.schemas sch on obj.schema_id = sch.schema_id where is_external = 0 and obj.name not like '%_Backup%' and obj.name not like '%_BKP%' and obj.name not like '%_tmp%' and obj.name not like '%_wDuplicates%' and sch.name != 'temp' ORDER BY 1, 2;"
     }
     elseif ($ObjectType -eq "ScalarFunctions") {
         $QueryToReturn = "select sch.name as schema_name, obj.name as object_name, obj.object_id, obj.schema_id, mod.definition from sys.objects obj inner join sys.schemas sch on obj.schema_id = sch.schema_id inner join [sys].[sql_modules] mod on mod.object_id = obj.object_id where obj.type_desc = 'SQL_SCALAR_FUNCTION' and sch.name != 'temp' ORDER BY 1, 2;"
     }
     elseif ($ObjectType -eq "Views") {
-        $QueryToReturn = "select sch.name as schema_name, obj.name as object_name, obj.object_id, obj.schema_id, mod.definition from sys.objects obj inner join sys.schemas sch on obj.schema_id = sch.schema_id inner join [sys].[sql_modules] mod on mod.object_id = obj.object_id where obj.type_desc = 'VIEW' and sch.name != 'temp' ORDER BY 1, 2;"
+        $QueryToReturn = "select sch.name as schema_name, obj.name as object_name from sys.objects obj inner join sys.schemas sch on obj.schema_id = sch.schema_id where obj.type_desc = 'VIEW' and sch.name != 'temp' ORDER BY 1, 2;"
     }
     elseif ($ObjectType -eq "Columns") {
         $QueryToReturn = "SELECT o.name, c.name, c.user_type_id, C.COLUMN_ID, c.max_length FROM sys.columns c INNER JOIN sys.objects o ON c.object_id = o.object_id WHERE o.type = 'U' AND o.name NOT IN ('sourceColumns' ,'sourceColumnsNew','SourceDefinitions')"

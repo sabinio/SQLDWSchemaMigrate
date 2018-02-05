@@ -52,7 +52,7 @@ function Export-CreateScriptsForObjects {
         "StoredProcedures" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ProcNew.sql"; $FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Proc.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Proc.sql"; break}
         "ScalarFunctions" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ProcNew.sql"; $FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Function.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_Function.sql"; break}
         "Views" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_ViewNew.sql"; $FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_View.sql"; $FileWithCheckDefinitionQuery = "$PSScriptRoot\sql\CheckDefinition_View.sql"; break}
-        "Schemas" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Schema.sql"; break}
+        "Schemas" {$FileWithGetCreateQueryNew = "$PSScriptRoot\sql\GetCreateStatement_SchemaNew.sql"; $FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Schema.sql"; break}
         "Tables" {$FileWithGetCreateQuery = "$PSScriptRoot\sql\GetCreateStatement_Table.sql"; break}
         default {"Something else happened"; break}
     }
@@ -62,7 +62,13 @@ function Export-CreateScriptsForObjects {
     Write-Host "Creating new table sourceDefinitions in target db to store definitions"
     $AddDefinitionListCmd = New-Object System.Data.SqlClient.SqlCommand
     $AddDefinitionListCmd.Connection = $TargetDbCon
-    $AddDefinitionListCmd.CommandText = "IF OBJECT_ID ('sourceDefinitions', 'U') IS NOT NULL DROP TABLE sourceDefinitions; CREATE TABLE sourceDefinitions (Databasename VARCHAR(8000), schemaName varchar(8000), objectName varchar(8000), object_definition varchar(MAX)) WITH (HEAP)"
+    if ($objectType -in "StoredProcedures", "ScalarFunctions", "Views") {
+        $AddDefinitionListCmd.CommandText = "IF OBJECT_ID ('sourceDefinitions', 'U') IS NOT NULL DROP TABLE sourceDefinitions; CREATE TABLE sourceDefinitions (Databasename VARCHAR(8000), schemaName varchar(8000), objectName varchar(8000), object_definition varchar(MAX)) WITH (HEAP)"
+    }
+    elseif ($objectTpye -eq "Tables") {
+        $AddDefinitionListCmd.CommandText = "IF OBJECT_ID ('sourceTables', 'U') IS NOT NULL DROP TABLE sourceDefinitions; CREATE TABLE sourceTables (Databasename VARCHAR(8000), schemaName varchar(8000), objectName varchar(8000) WITH (HEAP)"
+    
+    }
     $TargetDefinitionListReader = $AddDefinitionListCmd.ExecuteReader();
     $TargetDefinitionListReader.Close();
     $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand
@@ -78,7 +84,7 @@ function Export-CreateScriptsForObjects {
                 $SchemaId = $ObjectListReader.GetInt32(3)
                 $definition = $ObjectListReader.GetString(4).Replace("'", '')
                 $definitionForFile = $ObjectListReader.GetString(4)
-                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$SchemaName\$ObjectType\"
+                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$ObjectType\"
                 if (-not (Test-Path $PathToOutput)) {
                     New-Item $PathToOutput -Type Directory
                 }
@@ -116,31 +122,23 @@ function Export-CreateScriptsForObjects {
                 }
             }
             elseif ($ObjectType -eq "Schemas") {
-                Write-Host "here"
                 $SchemaName = $ObjectListReader.GetString(0)
                 $AuthorisationName = $ObjectListReader.GetString(1)
-                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$SchemaName\$ObjectType\"
+                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$ObjectType\"
                 if (-not (Test-Path $PathToOutput)) {
                     New-Item $PathToOutput -Type Directory
                 }
                 Write-Host "Exporting CREATE statement for [$SchemaName] of type $ObjectType"
-                sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$SchemaName.sql -v schema_name=$SchemaName authorisation_name=$AuthorisationName  -y 0 -b -j
-                if ($LASTEXITCODE -ne 0) {
-                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                    Throw $msgToThrow
-                }
-                Write-Host "Executing on target database $sqlTargetDatabaseName"
-                sqlcmd -i $PathToOutput$SchemaName.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
-                if ($LASTEXITCODE -ne 0) {
-                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                    Throw $msgToThrow
+                (Get-Content $FileWithGetCreateQueryNew).Replace('$(schema_name)', $SchemaName).Replace('$(authorisation_name)', $AuthorisationName)  | Set-Content $PathToOutput$SchemaName'_Create'.sql
+                If (-not ($FilePaths -contains $PathToOutput)) {
+                    $FilePaths.Add($PathToOutput)
                 }
             }
             elseif ($ObjectType -eq "Tables") {
                 $SchemaName = $ObjectListReader.GetString(0)
                 $ObjectName = $ObjectListReader.GetString(1)
                 $ObjectId = $ObjectListReader.GetInt32(2)
-                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$SchemaName\$ObjectType\"
+                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$ObjectType\"
                 if (-not (Test-Path $PathToOutput)) {
                     New-Item $PathToOutput -Type Directory
                 }
@@ -156,8 +154,25 @@ function Export-CreateScriptsForObjects {
                     }
                     $ReCreateusp_ConstructCreateStatementForTable = 1
                 }
+
+                
+                #new
+                Write-Host "Inserting [$SchemaName].[$ObjectName] into sourceTables on target server."
+                $AddDefinitionListCmd.CommandText = "INSERT INTO sourceDefinitions VALUES ('$SqlDatabaseName', '$schemaName', '$objectName');"
+                $TargetDefinitionListReader = $AddDefinitionListCmd.ExecuteReader();
+                $TargetDefinitionListReader.Close()
+
+                Write-Host "Gernerate list of tables that need creating..."
+                sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId -y 0 -b -j 
+                if ($LASTEXITCODE -ne 0) {
+                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+                    Throw $msgToThrow
+                }
+                #end of new
+
+
                 Write-Host "Exporting CREATE statement for [$SchemaName].[$Objectname] of type $ObjectType"
-                sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId -y 0 -b -j
+                sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId -y 0 -b -j 
                 if ($LASTEXITCODE -ne 0) {
                     $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
                     Throw $msgToThrow
@@ -176,9 +191,19 @@ function Export-CreateScriptsForObjects {
             }
         }
     }
+    if ($objectType -eq "Schemas") {
+        foreach ($filePath in $FilePaths) {
+            $schema = @(Get-ChildItem $filePath"\*_Create*")
+            Write-Host "Executing on target database $sqlTargetDatabaseName"
+            sqlcmd -i $schema -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+            if ($LASTEXITCODE -ne 0) {
+                $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+                Throw $msgToThrow
+            }
+        }
+    }
     $ObjectListReader.Close()
 }
-
 
 function Export-ColumnChanges {
     <#
@@ -232,16 +257,22 @@ function Export-ColumnChanges {
         Write-Host "Creating new table sourceColumns in target db to store column metadata"
         $AddColumnListCmd = New-Object System.Data.SqlClient.SqlCommand
         $AddColumnListCmd.Connection = $TargetColDbCon
-        $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int)"
+        $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int, max_length SMALLINT)"
         $TargetColumnListReader = $AddColumnListCmd.ExecuteReader();
         $TargetColumnListReader.Close();
-        $InsertStatement = "SET NOCOUNT ON `n INSERT INTO sourceColumns (databasename, tablename, colname,user_type_id, column_id) "
+        $InsertStatement = "SET NOCOUNT ON `n INSERT INTO sourceColumns (databasename, tablename, colname,user_type_id, column_id, max_length) "
         while ($ObjectListReader.Read()) {
             $ColumnTable = $ObjectListReader.GetString(0)
             $ColumnName = $ObjectListReader.GetString(1)
             $ColumnType = $ObjectListReader.GetInt32(2)
             $ColumnId = $ObjectListReader.GetInt32(3)
-            $InsertStatement = $InsertStatement + "SELECT '$SqlDatabaseName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId' UNION ALL `n"
+            if ($ColumnType -eq 231) {
+                $maxLength = $ObjectListReader.GetInt16(4) 
+                if ($maxLength -gt 1) {
+                    $maxLength = $maxLength / 2
+                }
+            } 
+            $InsertStatement = $InsertStatement + "SELECT '$SqlDatabaseName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId', '$maxLength' UNION ALL `n"
         }
         $InsertStatement = $InsertStatement.Substring(0, $InsertStatement.Length - 10)
         $PathToOutput = "$OutputDirectory\$sqlDatabaseName\InsertStatement_$sqlDatabaseName.sql"
@@ -310,18 +341,9 @@ Function Remove-CreateScriptForObjectsFiles {
         $OutputDirectory = $PSScriptRoot
     }
 
-    $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand
-    $GetObjectListCmd.Connection = $DbCon
-    $GetObjectListCmd.CommandText = $QueryForObjectList
-    $ObjectListReader = $GetObjectListCmd.ExecuteReader();
-    if ($ObjectListReader.HasRows) {
-        while ($ObjectListReader.Read()) {
-            $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$($ObjectListReader.GetString(0))\$ObjectType\"
-            if (Test-Path $PathToOutput) {
-                Write-Host "Removing path $PathToOutput"
-                Remove-Item $PathToOutput -Recurse
-            }
-        }
+    $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$ObjectType\"
+    if (Test-Path $PathToOutput) {
+        Write-Host "Removing path $PathToOutput"
+        Remove-Item $PathToOutput -Recurse
     }
-    $ObjectListReader.Close()
 }

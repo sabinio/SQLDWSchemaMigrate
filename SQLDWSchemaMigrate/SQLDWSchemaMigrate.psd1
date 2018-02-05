@@ -59,6 +59,7 @@
  
     # Functions to export from this module
     FunctionsToExport = @(
+        'Get-ExistQuery',
         'Get-ListQuery',
         'Connect-SqlServer',
         'Disconnect-SqlServer',

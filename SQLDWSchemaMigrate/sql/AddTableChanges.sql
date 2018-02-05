@@ -49,7 +49,7 @@ BEGIN
 			);
 
 	SELECT sys.columns.name
-		,sys.columns.user_type_id
+		,sys.columns.user_type_id, sys.columns.max_length
 	INTO #tempprodtablecolumns
 	FROM sys.columns
 	INNER JOIN sys.tables ON sys.columns.object_id = sys.tables.object_id
@@ -58,6 +58,7 @@ BEGIN
 	SELECT tablename
 		,colname
 		,user_type_id
+		,max_length
 	INTO #tempdevtablecolumns
 	FROM sourceColumns
 	WHERE tablename = @currentTable
@@ -69,11 +70,12 @@ BEGIN
 			ORDER BY (
 					SELECT 0
 					)
-			) AS number
+			) AS number,
+			max_length
 	INTO #addedcolumns
 	FROM (
 		SELECT b.*
-			,a.user_type_id missingcolumn
+			,a.user_type_id missingcolumn, a.max_length prod_max_length
 		FROM #tempprodtablecolumns a
 		RIGHT JOIN #tempdevtablecolumns b ON a.name = b.colname
 		) A
@@ -98,6 +100,7 @@ BEGIN
 	DECLARE @currentcolname NVARCHAR(max);
 	DECLARE @currentcoltype NVARCHAR(max);
 	DECLARE @coltypename NVARCHAR(max);
+	DECLARE @currentcollength NVARCHAR(max) = '';
 	DECLARE @SQL NVARCHAR(max);
 
 	SET @totalnewcolumns = (
@@ -126,6 +129,15 @@ BEGIN
 				FROM sys.types
 				WHERE user_type_id = @currentcoltype
 				)
+		IF (@currentcoltype = 231)
+		BEGIN
+				SET @currentcollength = ' ('+(
+						SELECT CAST (max_length as nvarchar (8)) + ')'
+						FROM #addedcolumns
+						WHERE number = @secondcounter 
+				);
+				SET @coltypename = @coltypename + @currentcollength
+		END
 		SET @SQL = 'ALTER TABLE ' + @currentTable + ' ADD ' + @currentcolname + ' ' + @coltypename;
 
 		PRINT '---------- Altering statement: ' + @SQL + ' ---------- ';
