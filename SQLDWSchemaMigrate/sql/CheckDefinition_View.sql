@@ -2,12 +2,11 @@
 SET NOCOUNT ON;
 
 DECLARE @objectName [VARCHAR](255);
-SET @objectName =	(SELECT DISTINCT OBJECT_NAME($(object_id))  
-					FROM sys.objects);
+SET @objectName = '$(object_name)'
+
 
 DECLARE @schemaName [VARCHAR](255);
-SET @schemaName = (SELECT DISTINCT SCHEMA_NAME($(schema_id))
-                   FROM sys.objects);
+SET @schemaName = '$(schema_name)'
 
 DECLARE @checkDiff [VARCHAR] (MAX)
 SET @checkDiff = '
@@ -21,7 +20,7 @@ where
 						schemaname = '''+@schemaName+'''
                         and
                         type_desc = ''VIEW'')
-PRINT ''identical''
+SELECT ''identical''
 ELSE
-PRINT ''different'''
-SELECT @checkDiff
+SELECT ''different'''
+EXEC (@checkDiff)

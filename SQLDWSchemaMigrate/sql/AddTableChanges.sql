@@ -2,7 +2,7 @@
 
 SET NOCOUNT ON;
 
--- All tables currently in "production db"
+-- All tables currently in "production db" taht are also in sourceColumns table
 SELECT *
 	,row_number() OVER (
 		ORDER BY (
@@ -11,7 +11,9 @@ SELECT *
 		) AS number
 INTO #Temp1
 FROM (
-	SELECT DISTINCT obj.name AS object_name
+	SELECT DISTINCT 
+	sch.name As schema_name
+		,obj.name AS object_name
 		,obj.object_id
 	FROM sys.tables obj
 	INNER JOIN sys.schemas sch ON obj.schema_id = sch.schema_id
@@ -23,14 +25,12 @@ FROM (
 		AND obj.name NOT LIKE '%_wDuplicates%'
 		AND sch.name != 'temp'
 		AND NOT (obj.name LIKE '%Source%')
-		AND obj.name IN (select distinct sc.tablename from sourceColumns sc)
 	) A
-
-DELETE FROM #Temp1 WHERE #Temp1.object_name NOT IN (SELECT sc.tablename FROM sourceColumns sc)
 
 DECLARE @TotalTables INT
 DECLARE @counter INT
 DECLARE @currentTable NVARCHAR(max);
+DECLARE @currentSchema NVARCHAR(max);
 
 SET @TotalTables = (
 		SELECT count(*)
@@ -47,21 +47,31 @@ BEGIN
 			FROM #Temp1
 			WHERE number = @counter
 			);
+	SET @currentSchema = (
+			SELECT schema_name
+			FROM #Temp1
+			WHERE number = @counter
+			);
+			PRINT @currentSchema
 
 	SELECT sys.columns.name
 		,sys.columns.user_type_id, sys.columns.max_length
 	INTO #tempprodtablecolumns
 	FROM sys.columns
 	INNER JOIN sys.tables ON sys.columns.object_id = sys.tables.object_id
-	WHERE sys.tables.name = @currentTable;
-
-	SELECT tablename
+	INNER JOIN sys.schemas ON sys.tables.schema_id = sys.schemas.schema_id 
+	WHERE sys.tables.name = @currentTable
+		AND sys.schemas.name = @currentSchema;
+	
+	SELECT schemaname 
+		,tablename
 		,colname
 		,user_type_id
 		,max_length
 	INTO #tempdevtablecolumns
 	FROM sourceColumns
 	WHERE tablename = @currentTable
+	AND schemaname = @currentSchema
 
 	-- Find newly added columns not in "production" into temp table
 	SELECT user_type_id
@@ -80,16 +90,6 @@ BEGIN
 		RIGHT JOIN #tempdevtablecolumns b ON a.name = b.colname
 		) A
 	WHERE missingcolumn IS NULL;
-
-	SELECT *
-	FROM #tempprodtablecolumns
-
-	SELECT *
-	FROM #tempdevtablecolumns
-
-	SELECT *
-	FROM #addedcolumns
-
 	-- Clean up temp tables
 	DROP TABLE #tempprodtablecolumns;
 
@@ -109,7 +109,7 @@ BEGIN
 			);
 	SET @secondcounter = 1
 
-	PRINT 'Total new columns for table ' + @currentTable + ' is ' + CONVERT(VARCHAR(10), @totalnewcolumns);
+	PRINT 'Total new columns for table '+ @currentSchema +'.'+ @currentTable + ' is ' + CONVERT(VARCHAR(10), @totalnewcolumns);
 
 	-- Loop through added columns and adding columns in "production" table
 	WHILE (@secondcounter <= @totalnewcolumns)
@@ -138,7 +138,7 @@ BEGIN
 				);
 				SET @coltypename = @coltypename + @currentcollength
 		END
-		SET @SQL = 'ALTER TABLE ' + @currentTable + ' ADD ' + @currentcolname + ' ' + @coltypename;
+		SET @SQL = 'ALTER TABLE ' + @currentSchema +'.'+ @currentTable + ' ADD ' + @currentcolname + ' ' + @coltypename;
 
 		PRINT '---------- Altering statement: ' + @SQL + ' ---------- ';
 

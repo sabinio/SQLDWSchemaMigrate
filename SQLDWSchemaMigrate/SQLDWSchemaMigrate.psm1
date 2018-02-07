@@ -86,22 +86,12 @@ function Export-CreateScriptsForObjects {
                 if (-not (Test-Path $PathToOutput)) {
                     New-Item $PathToOutput -Type Directory
                 }
+                $sqlCommandText = (Get-Content $FileWithCheckDefinitionQuery).Replace('$(object_name)', $ObjectName).Replace('$(schema_name)', $SchemaName)
                 Write-Host "Inserting definition for object [$SchemaName].[$ObjectName] into sourceDefinitions on target server."
-                $AddDefinitionListCmd.CommandText = "INSERT INTO sourceDefinitions VALUES ('$SqlDatabaseName', '$schemaName', '$objectName', '$definition');"
-                $TargetDefinitionListReader = $AddDefinitionListCmd.ExecuteReader();
-                $TargetDefinitionListReader.Close()
-                Write-Host "Exporting compare definition statement for [$SchemaName].[$ObjectName] of type $ObjectType"
-                sqlcmd -i $FileWithCheckDefinitionQuery -S $SqlServerName -d $SqlDatabaseName -U $Username -P $Password -G -I -o $PathToOutput$ObjectName'_Check'.sql -v object_id=$ObjectId schema_id=$SchemaId  -y 0 -b -j 
-                if ($LASTEXITCODE -ne 0) {
-                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                    Throw $msgToThrow
-                }
-                Write-Host "Checking if object [$SchemaName].[$ObjectName] on source database matches target database $sqlTargetDatabaseName"
-                $gren = sqlcmd -i $PathToOutput$ObjectName'_Check'.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j -r0 -k1
-                if ($LASTEXITCODE -ne 0) {
-                    $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-                    Throw $msgToThrow
-                }
+                $AddDefinitionListCmd.CommandText = "SET NOCOUNT ON;
+                INSERT INTO sourceDefinitions VALUES ('$SqlDatabaseName', '$schemaName', '$objectName', '$definition');
+                $sqlCommandText" 
+                $gren = $AddDefinitionListCmd.ExecuteScalar();
                 if ($gren -match 'identical') {
                     Write-Host "[$SchemaName].[$ObjectName] are identical on source and target databases. No further action required."
                 
@@ -111,7 +101,7 @@ function Export-CreateScriptsForObjects {
                         $FilePaths.Add($PathToOutput)
                     }
                     Write-Host "Exporting CREATE statement for [$SchemaName].[$ObjectName] of type $ObjectType as definitions do not match."
-                    (Get-Content $FileWithGetCreateQueryNew).Replace("OBJECTPROPERTY('object_id(`$(schema_name).`$(object_name)')", "OBJECTPROPERTY('object_id($SchemaName.$ObjectName'").Replace('$(object_name)', $ObjectName).Replace('$(schema_name)', $SchemaName).Replace('$(createStatement)', $definitionForFile)  | Set-Content $PathToOutput$ObjectName'_Create'.sql
+                    (Get-Content $FileWithGetCreateQueryNew).Replace("OBJECTPROPERTY('object_id(`$(schema_name).`$(object_name)')", "OBJECTPROPERTY('object_id($SchemaName.$ObjectName'").Replace('$(object_name)', $ObjectName).Replace('$(schema_name)', $SchemaName).Replace('$(createStatement)', $definitionForFile)  | Set-Content $PathToOutput$SchemaName$ObjectName'_Create'.sql
                 }
                 else {
                     Write-Host "hmmm..."
@@ -126,10 +116,21 @@ function Export-CreateScriptsForObjects {
                 if (-not (Test-Path $PathToOutput)) {
                     New-Item $PathToOutput -Type Directory
                 }
-                Write-Host "Exporting CREATE statement for [$SchemaName] of type $ObjectType"
-                (Get-Content $FileWithGetCreateQueryNew).Replace('$(schema_name)', $SchemaName).Replace('$(authorisation_name)', $AuthorisationName)  | Set-Content $PathToOutput$SchemaName'_Create'.sql
-                If (-not ($FilePaths -contains $PathToOutput)) {
-                    $FilePaths.Add($PathToOutput)
+                $AddDefinitionListCmd.CommandText = "
+                IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = '$SchemaName')
+                SELECT 1
+                ELSE
+                SELECT 0"
+                $schemaExists = $AddDefinitionListCmd.ExecuteScalar();
+                if ($schemaExists -eq 1) {
+                    Write-Host "Exporting CREATE statement for [$SchemaName] of type $ObjectType"
+                    (Get-Content $FileWithGetCreateQueryNew).Replace('$(schema_name)', $SchemaName).Replace('$(authorisation_name)', $AuthorisationName)  | Set-Content $PathToOutput$SchemaName'_Create'.sql
+                    If (-not ($FilePaths -contains $PathToOutput)) {
+                        $FilePaths.Add($PathToOutput)
+                    }
+                }
+                elseif ($schemaExists -eq 0) {
+                    Write-Host "Schema [$SchemaName] already exists..."
                 }
             }
             elseif ($ObjectType -eq "Tables") {
@@ -166,13 +167,13 @@ function Export-CreateScriptsForObjects {
                 $TableExists = $AddDefinitionListCmd.ExecuteScalar();
                 if ($TableExists -eq 1) {
                     Write-Host "Generating CREATE TABLE Script for [$SchemaName].[$ObjectName]..."
-                    sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$ObjectName'_Create'.sql -v object_id=$ObjectId -y 0 -b -j 
+                    sqlcmd -i $FileWithGetCreateQuery -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I -o $PathToOutput$SchemaName$ObjectName'_Create'.sql -v object_id=$ObjectId -y 0 -b -j 
                     if ($LASTEXITCODE -ne 0) {
                         $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
                         Throw $msgToThrow
                     }
                 }
-                elseif ($tableExists -eq 0){
+                elseif ($tableExists -eq 0) {
                     Write-Host "Table [$SchemaName].[$ObjectName] already exists..."
                 }
             }
@@ -181,6 +182,8 @@ function Export-CreateScriptsForObjects {
     if ($objectType -in "StoredProcedures", "ScalarFunctions", "Views", "Tables") {
         foreach ($filePath in $FilePaths) {
             $schema = @(Get-ChildItem $filePath"\*_Create*")
+            Write-Host "Here"
+            Start-Sleep -Seconds 20
             if ($schema.count -gt 0) {
                 Write-Host "Executing scripts in folder $filePath"
                 sqlcmd -i $schema -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
@@ -205,6 +208,120 @@ function Export-CreateScriptsForObjects {
         }
     }
     $ObjectListReader.Close()
+}
+
+Function Remove-CreateScriptForObjectsFiles {
+    <#
+	.Synopsis
+	Used to generate CREATE statements for objects on source database that can be migratedto target database 
+	.Description
+    Based on object we are migrating, execute a query on source database to get objects of a certain type, and generate CREATe statements. 
+    Where no data loss can occur, we drop and recreate.
+	.Parameter dbcon
+    Connection to source database. Used to get list of all objects on source database (ie executes QueryForObjectList)
+    .Parameter QueryForObjectList
+    Query to list all objects. See Get-ListQuery Function to see query that is passed in.
+    .Parameter ObjectType
+    The type of object we are migrating.
+	.Parameter sqlDatabaseName
+    Used for creating folders
+	.Example
+    Remove-CreateScriptForObjectsFiles $conn $listSchemasQuery "schemas" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
+    Remove-CreateScriptForObjectsFiles $conn $listStoredProceduresQuery "StoredProcedures" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName                                                                                                                                         
+    Remove-CreateScriptForObjectsFiles $conn $listTablesQuery "Tables" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
+    Remove-CreateScriptForObjectsFiles $conn $listFunctionsQuery "ScalarFunctions" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
+    Remove-CreateScriptForObjectsFiles $conn $listViewsQuery "Views" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName  
+    #>
+    param(
+        [System.Data.SqlClient.SqlConnection]$DbCon, 
+        [string]$QueryForObjectList, 
+        [string]$ObjectType,
+        $sqlDatabaseName,
+        [String]$OutputDirectory) 
+    if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
+        $OutputDirectory = $PSScriptRoot
+    }
+    $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$ObjectType\"
+    if (Test-Path $PathToOutput) {
+        Write-Host "Removing path $PathToOutput"
+        Remove-Item $PathToOutput -Recurse
+    }
+}
+
+Function Compare-TableDelta {
+
+    param(
+        [System.Data.SqlClient.SqlConnection]$sourceConn, 
+        [System.Data.SqlClient.SqlConnection]$targetConn
+    ) 
+    $q1 = "	SELECT s.name, o.name, COUNT(*)
+		FROM sys.columns c
+		INNER JOIN sys.objects o ON c.object_id = o.object_id
+		INNER JOIN sys.schemas s ON s.schema_id = o.schema_id
+		INNER JOIN sys.tables t ON t.object_id= o.object_id
+		WHERE o.type = 'U'
+			AND o.name NOT IN (
+				'sourceColumns'
+				,'sourceColumnsNew'
+				,'SourceDefinitions'
+				)
+				AND t.is_external = 0 
+				GROUP by o.name,s.name";
+    # # Create dataset objects
+    $resultset1 = New-Object "System.Data.DataSet" "myDs";
+    $resultset2 = New-Object "System.Data.DataSet" "myDs";
+    # Run query 1 and fill resultset1
+    $data_adap = new-object "System.Data.SqlClient.SqlDataAdapter" ($q1, $sourceConn);
+    $data_adap.Fill($resultset1) | Out-Null;
+    # Run query 2 and fill resultset2
+    $data_adap = new-object "System.Data.SqlClient.SqlDataAdapter" ($q1, $targetConn);
+    $data_adap.Fill($resultset2) | Out-Null;
+    # Get data table (only first table will be compared).
+    [System.Data.DataTable]$dataset1 = $resultset1.Tables[0];
+    [System.Data.DataTable]$dataset2 = $resultset2.Tables[0];
+    # Compare tables
+    Write-Host $resultset1.Tables[0]
+    Write-Host $resultset2.Tables[0]
+    $diff = Compare-Object $dataset1 $dataset2;
+    # Are there any differences?
+    if ($diff -eq $null) {
+        Write-Host "The resultset objects look the same... Performing a detailed RBAR check...";
+        $same = RBAR-Check $dataset1 $dataset2;
+        if ($same.Count -eq 0) {
+            Write-Host -ForegroundColor Green "The resultsets are the same.";
+        }
+        else {
+            Write-Host -ForegroundColor Red "The resultsets are not the same.";
+            $str = $same | Out-String
+            Return $same
+        }
+    }
+    else {
+        Write-Host "The resultsets are different.";
+    }
+    # Clean up
+    $dataset1.Dispose();
+    $dataset2.Dispose();
+    $resultset1.Dispose();
+    $resultset2.Dispose();
+    $data_adap.Dispose();
+}
+
+
+function RBAR-Check ($dataset1, $dataset2) {
+    $row_index = 0;
+    foreach ($row in $dataset1.Rows) {
+        $column_index = 0;
+        foreach ($col in $row.ItemArray) {
+            $col2 = $dataset2.Rows[$row_index][$column_index];
+            if ($col -ne $col2) {
+                $output + (@{$row.ItemArray[0] = $($row.ItemArray[1])});
+            }
+            $column_index += 1;
+        }
+        $row_index += 1;
+    }
+    return $output;
 }
 
 function Export-ColumnChanges {
@@ -239,6 +356,7 @@ function Export-ColumnChanges {
         [System.Data.SqlClient.SqlConnection]$DbCon, 
         [System.Data.SqlClient.SqlConnection]$ColDbCon, 
         [string]$QueryForObjectList,
+        $sqlServerName,
         $sqlDatabaseName,
         $TargetSqlServerName,
         $sqlTargetDatabaseName,
@@ -250,102 +368,89 @@ function Export-ColumnChanges {
     if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
         $OutputDirectory = $PSScriptRoot
     }
-    Write-Host "Starting source table connection"
-    $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand
-    $GetObjectListCmd.Connection = $DbCon
-    $GetObjectListCmd.CommandText = $QueryForObjectList
-    $ObjectListReader = $GetObjectListCmd.ExecuteReader();
-    if ($ObjectListReader.HasRows) {
-        Write-Host "Creating new table sourceColumns in target db to store column metadata"
-        $AddColumnListCmd = New-Object System.Data.SqlClient.SqlCommand
-        $AddColumnListCmd.Connection = $TargetColDbCon
-        $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int, max_length SMALLINT)"
-        $TargetColumnListReader = $AddColumnListCmd.ExecuteReader();
-        $TargetColumnListReader.Close();
-        $InsertStatement = "SET NOCOUNT ON `n INSERT INTO sourceColumns (databasename, tablename, colname,user_type_id, column_id, max_length) "
-        while ($ObjectListReader.Read()) {
-            $ColumnTable = $ObjectListReader.GetString(0)
-            $ColumnName = $ObjectListReader.GetString(1)
-            $ColumnType = $ObjectListReader.GetInt32(2)
-            $ColumnId = $ObjectListReader.GetInt32(3)
-            if ($ColumnType -eq 231) {
-                $maxLength = $ObjectListReader.GetInt16(4) 
-                if ($maxLength -gt 1) {
-                    $maxLength = $maxLength / 2
-                }
-            } 
-            $InsertStatement = $InsertStatement + "SELECT '$SqlDatabaseName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId', '$maxLength' UNION ALL `n"
-        }
-        $InsertStatement = $InsertStatement.Substring(0, $InsertStatement.Length - 10)
-        $PathToOutput = "$OutputDirectory\$sqlDatabaseName\InsertStatement_$sqlDatabaseName.sql"
-        Set-Content $PathToOutput $InsertStatement
-        sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
-        if ($LASTEXITCODE -ne 0) {
-            $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-            Throw $msgToThrow
-        }
-    }
-    $ObjectListReader.Close()
-    $checkSumOfColumns = sqlcmd -i $PSScriptRoot\sql\CheckSumOfColumns.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j -r0 -k1
+
+    $sourceSumOfColumns = sqlcmd -i $PSScriptRoot\sql\CheckSumOfColumnsNew.sql -S $SqlServerName -d $SqlDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j -r0 -k1
     if ($LASTEXITCODE -ne 0) {
         $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
         Throw $msgToThrow
     }
-    if ($checkSumOfColumns -match 'moreInSourceThanInTarget') {
-        Write-Host "More columns in source database than target database. Determining which tables are affected."
-        sqlcmd -i $PSScriptRoot\sql\SetTablesWithDelta.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
-        if ($LASTEXITCODE -ne 0) {
-            $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
-            Throw $msgToThrow
+    $targetSumofColumns = sqlcmd -i $PSScriptRoot\sql\CheckSumOfColumnsNew.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j -r0 -k1
+    if ($LASTEXITCODE -ne 0) {
+        $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+        Throw $msgToThrow
+    }
+    if ($targetSumofColumns -lt $sourceSumOfColumns) {
+        Write-Host "Creating new table sourceColumns in target db to store column metadata"
+        $AddColumnListCmd = New-Object System.Data.SqlClient.SqlCommand
+        $AddColumnListCmd.Connection = $TargetColDbCon
+        $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), schemaname varchar (8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int, max_length SMALLINT)"
+        $TargetColumnListReader = $AddColumnListCmd.ExecuteReader();
+        $TargetColumnListReader.Close();
+        $whatIs = Compare-TableDelta -sourceConn $DbCon -targetConn $TargetColDbCon
+        $str = $whatIs | Out-String
+        Write-Host $str
+        Start-Sleep -Seconds 4
+        foreach ($What in $WhatIs) {
+            foreach ($wKeys in $What.Keys) {
+                $message = 'Schema name is {0} and Table Name is {1}' -f $wKeys, $What[$wKeys]
+                Write-Host $message
+                $schemaName = $wKeys
+                $objectName = $What[$wKeys]
+                Write-Host "Schema name is $schemaName and Table Name is $objectName!" -ForegroundColor DarkGreen -BackgroundColor White
+                $NewQueryForObjectList = "SELECT s.name
+            ,o.name
+            ,c.name
+            ,c.user_type_id
+            ,C.COLUMN_ID
+            ,c.max_length
+        FROM sys.columns c
+        INNER JOIN sys.objects o ON c.object_id = o.object_id
+        INNER JOIN sys.schemas s ON s.schema_id = o.schema_id
+        INNER JOIN sys.tables t ON t.object_id = o.object_id
+        WHERE o.type = 'U'
+            AND s.name = '$schemaName'
+            and t.name = '$obJectName'
+            AND t.is_external = 0"
+                $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand
+                $GetObjectListCmd.Connection = $DbCon
+                $GetObjectListCmd.CommandText = $NewQueryForObjectList
+                $ObjectListReader = $GetObjectListCmd.ExecuteReader();
+                if ($ObjectListReader.HasRows) {
+                    $InsertStatement = "SET NOCOUNT ON `n INSERT INTO sourceColumns (databasename, schemaname, tablename, colname,user_type_id, column_id, max_length) "        
+                    while ($ObjectListReader.Read()) {
+                        $schemaName = $ObjectListReader.GetString(0)
+                        $ColumnTable = $ObjectListReader.GetString(1)
+                        $ColumnName = $ObjectListReader.GetString(2)
+                        $ColumnType = $ObjectListReader.GetInt32(3)
+                        $ColumnId = $ObjectListReader.GetInt32(4)
+                        if ($ColumnType -eq 231) {
+                            $maxLength = $ObjectListReader.GetInt16(5) 
+                            if ($maxLength -gt 1) {
+                                $maxLength = $maxLength / 2
+                            }
+                        }
+                        $InsertStatement += "SELECT '$SqlDatabaseName', '$schemaName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId', '$maxLength' UNION ALL`n"
+                    }
+                    $InsertStatement = $InsertStatement.Substring(0, $InsertStatement.Length - 10)
+                    $PathToOutput = "$OutputDirectory\$sqlDatabaseName\InsertStatement_$schemaName$ColumnTable.sql"
+                    Set-Content $PathToOutput $InsertStatement
+                    sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+                    if ($LASTEXITCODE -ne 0) {
+                        $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
+                        Throw $msgToThrow
+                    }
+                }
+                $ObjectListReader.Close()       
+            }
         }
         Write-Host "Adding missing columns, this can take some time..."
         sqlcmd -i $PSScriptRoot\sql\AddTableChanges.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
         if ($LASTEXITCODE -ne 0) {
             $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
             Throw $msgToThrow
-        }
+        } 
     }
-    if ($checkSumOfColumns -match 'sameInSourceAndTarget') {
-        Write-Host "Sums of columns in both source and target databases match..."
-    }
-}
-Function Remove-CreateScriptForObjectsFiles {
-    <#
-	.Synopsis
-	Used to generate CREATE statements for objects on source database that can be migratedto target database 
-	.Description
-    Based on object we are migrating, execute a query on source database to get objects of a certain type, and generate CREATe statements. 
-    Where no data loss can occur, we drop and recreate.
-	.Parameter dbcon
-    Connection to source database. Used to get list of all objects on source database (ie executes QueryForObjectList)
-    .Parameter QueryForObjectList
-    Query to list all objects. See Get-ListQuery Function to see query that is passed in.
-    .Parameter ObjectType
-    The type of object we are migrating.
-	.Parameter sqlDatabaseName
-    Used for creating folders
-	.Example
-    Remove-CreateScriptForObjectsFiles $conn $listSchemasQuery "schemas" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
-    Remove-CreateScriptForObjectsFiles $conn $listStoredProceduresQuery "StoredProcedures" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName                                                                                                                                         
-    Remove-CreateScriptForObjectsFiles $conn $listTablesQuery "Tables" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
-    Remove-CreateScriptForObjectsFiles $conn $listFunctionsQuery "ScalarFunctions" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName
-    Remove-CreateScriptForObjectsFiles $conn $listViewsQuery "Views" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName  
-    #>
-    param(
-        [System.Data.SqlClient.SqlConnection]$DbCon, 
-        [string]$QueryForObjectList, 
-        [string]$ObjectType,
-        $sqlDatabaseName,
-        [String]$OutputDirectory) 
-
-        
-    if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
-        $OutputDirectory = $PSScriptRoot
-    }
-
-    $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$ObjectType\"
-    if (Test-Path $PathToOutput) {
-        Write-Host "Removing path $PathToOutput"
-        Remove-Item $PathToOutput -Recurse
+    elseif ($targetSumofColumns -eq $sourceSumOfColumns) {
+        Write-Host "Number of columns on source and target match..."
     }
 }

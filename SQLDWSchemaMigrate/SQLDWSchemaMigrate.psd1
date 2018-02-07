@@ -59,6 +59,7 @@
  
     # Functions to export from this module
     FunctionsToExport = @(
+        'Compare-TableDelta',
         'Get-ExistQuery',
         'Get-ListQuery',
         'Connect-SqlServer',
