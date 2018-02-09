@@ -24,9 +24,9 @@ FROM (
 		AND obj.name NOT LIKE '%_tmp%'
 		AND obj.name NOT LIKE '%_wDuplicates%'
 		AND sch.name != 'temp'
+		AND sch.name = sc.schemaname
 		AND NOT (obj.name LIKE '%Source%')
 	) A
-
 DECLARE @TotalTables INT
 DECLARE @counter INT
 DECLARE @currentTable NVARCHAR(max);
@@ -37,7 +37,6 @@ SET @TotalTables = (
 		FROM #Temp1
 		);
 SET @counter = 1
-
 -- Looping through all tables in "production" and checking for deltas
 WHILE (@counter <= @TotalTables)
 BEGIN
@@ -52,8 +51,7 @@ BEGIN
 			FROM #Temp1
 			WHERE number = @counter
 			);
-			PRINT @currentSchema
-
+		
 	SELECT sys.columns.name
 		,sys.columns.user_type_id, sys.columns.max_length
 	INTO #tempprodtablecolumns
