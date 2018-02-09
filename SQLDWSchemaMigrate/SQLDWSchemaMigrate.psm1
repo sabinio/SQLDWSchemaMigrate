@@ -258,7 +258,7 @@ function Export-ColumnChanges {
    .Example
    Export-ColumnChanges -DbCon $conn $columnConn $listColumnsQuery -tableQueryList $listTablesQuery -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $aaduName -password $aadpword -TargetSqlServerName $ServerName -sqlTargetDatabaseName $targetDatabaseName -OutputDirectory $pathToSaveFiles
 #>
-[CmdletBinding()]
+    [CmdletBinding()]
     param(
         [System.Data.SqlClient.SqlConnection]$DbCon, 
         [System.Data.SqlClient.SqlConnection]$ColDbCon, 
@@ -311,11 +311,16 @@ function Export-ColumnChanges {
                     $ColumnName = $ObjectListReader.GetString(2)
                     $ColumnType = $ObjectListReader.GetInt32(3)
                     $ColumnId = $ObjectListReader.GetInt32(4)
-                    if ($ColumnType -in 231, 239) {
-                        $maxLength = $ObjectListReader.GetInt16(5) 
-                        if ($maxLength -gt 1) {
-                            $maxLength = $maxLength / 2
+                    if ($ColumnType -in 167, 175, 231, 239) {
+                        $maxLength = $ObjectListReader.GetInt16(5)
+                        if ($columnType -in 231, 239) {
+                            if ($maxLength -gt 1) {
+                                $maxLength = $maxLength / 2
+                            }
                         }
+                    }
+                    else{
+                        $maxLength = 0
                     }
                     $InsertStatement += "SELECT '$SqlDatabaseName', '$schemaName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId', '$maxLength' UNION ALL`n"
                 }
