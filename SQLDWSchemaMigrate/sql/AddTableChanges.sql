@@ -27,6 +27,7 @@ FROM (
 		AND sch.name = sc.schemaname
 		AND NOT (obj.name LIKE '%Source%')
 	) A
+
 DECLARE @TotalTables INT
 DECLARE @counter INT
 DECLARE @currentTable NVARCHAR(max);
@@ -51,7 +52,7 @@ BEGIN
 			FROM #Temp1
 			WHERE number = @counter
 			);
-		
+      
 	SELECT sys.columns.name
 		,sys.columns.user_type_id, sys.columns.max_length
 	INTO #tempprodtablecolumns
