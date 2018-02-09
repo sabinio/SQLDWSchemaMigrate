@@ -15,6 +15,7 @@ Following MSI's need to be installed -
 * Microsoft Active Directory Authentication Library for Microsoft SQL Server https://www.microsoft.com/en-us/download/confirmation.aspx?id=48742 
 * Microsoft ODBC Driver 13.1 for SQL Server https://www.microsoft.com/en-us/download/details.aspx?id=53591
 * Microsoft Command Line Utilities 13.1 for SQL Server https://www.microsoft.com/en-us/download/details.aspx?id=53339 
+Please note that this is still in development stages!
 </releaseNotes>
 <projectUrl>https://github.com/sabinio/SQLDWSchemaMigrate</projectUrl>
 <iconUrl>https://raw.githubusercontent.com/sabinio/SQLDWSchemaMigrate/master/SQLDWSchemaMigrate/image/icon.png</iconUrl>
@@ -23,11 +24,12 @@ Following MSI's need to be installed -
 <file src="SQLDWSchemaMigrate.psd1"/>
 <file src="SQLDWSchemaMigrate.psm1"/>
 <file src="..\readme.md"/>
-<file src="Functions\GetListQuery.ps1" target="Functions"/>
+<file src="Functions\CompareFunctions.ps1" target="Functions"/>
 <file src="Functions\ConnectSqlServer.ps1" target="Functions"/>
 <file src="Functions\DisconnectSqlServer.ps1" target="Functions"/>
+<file src="Functions\GetListQuery.ps1" target="Functions"/>
+<file src="image\icon.png"/>
 <file src="sql\AddTableChanges.sql" target="sql"/>
-<file src="sql\CheckSumOfColumnsNew.sql" target="sql"/>
 <file src="sql\usp_ConstructCreateStatementForTable.sql" target="sql"/>
 </files>
 </package>

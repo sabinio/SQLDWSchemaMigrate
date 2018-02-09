@@ -129,7 +129,7 @@ BEGIN
 				FROM sys.types
 				WHERE user_type_id = @currentcoltype
 				)
-		IF (@currentcoltype = 231)
+		IF (@currentcoltype IN (231, 167, 175, 239))
 		BEGIN
 				SET @currentcollength = ' ('+(
 						SELECT CAST (max_length as nvarchar (8)) + ')'
