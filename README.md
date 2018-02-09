@@ -119,11 +119,11 @@ The -G option defines that sqlcmd uses Azure Active Directory for authentication
 Currently no files are being created. This feature may change! 
 
 ~~On both ```Remove-CreateScriptForObjectsFiles``` and ```Export-CreateScriptsForObjects``` there is a parameter called ```$outputDir```. Set this to the location you want the "CREATE" statements saved to. If this parameter is not used then ```$PSScriptRoot``` is used. EG -~~
-```powershell
+~~```powershell
   if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
             $OutputDirectory = $PSScriptRoot
 	}
-```
+```~~
 
 ~~### Are There Any Files That Are Not Created?
 The "ALTER" statements for applying COLUMN changes are not generated. Instead a print statement is generated for logging purposes.~~
