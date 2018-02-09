@@ -1,8 +1,3 @@
-IF OBJECTPROPERTY(object_id('usp_ConstructCreateStatementForTable'),  'IsProcedure') = 1
-
-DROP PROCEDURE usp_ConstructCreateStatementForTable
-GO
-
 CREATE PROC [usp_ConstructCreateStatementForTable] @schemaName [VARCHAR](50),@tableName [VARCHAR](255),@nameAppendix [VARCHAR](255),@sqlCmd [VARCHAR](8000) OUT AS
 BEGIN
        SET NOCOUNT ON
@@ -15,18 +10,14 @@ BEGIN
        DECLARE @columnList AS VARCHAR(8000)
        DECLARE @distributionClause AS VARCHAR(1000)
        DECLARE @indexClause AS VARCHAR(1000)
-       --> Construct the 'CREATE TABLE ...' clause
        SET @createClause = 
        'IF  NOT EXISTS (SELECT * FROM sys.objects 
       WHERE object_id = OBJECT_ID(N''[' + @schemaName + '].[' + @tableName + @nameAppendix + ']'') AND type in (N''U''))
       BEGIN
        CREATE TABLE [' + @schemaName + '].[' + @tableName + @nameAppendix + ']'
-
-       --> Construct the column list
        SET @columnList = '(' + CHAR(13)+CHAR(10) + '   '
        SET @columnDefinition = ''
        SET @columnOrdinal = 0
-
        WHILE @columnDefinition IS NOT NULL
        BEGIN
               IF @columnOrdinal > 1
@@ -50,11 +41,8 @@ BEGIN
                                                        AND [ORDINAL_POSITION] = @columnOrdinal)
        END
        SET @columnList = @columnList +  + CHAR(13)+CHAR(10) + ')'
-
-       /* Construct the distribution clause by querrying the
-       * distribution type and the distribution column */
        SET @distributionType = (
-              SELECT tdp.[distribution_policy_desc] --> Distribution Type
+              SELECT tdp.[distribution_policy_desc]
               FROM sys.pdw_table_distribution_properties tdp
               INNER JOIN sys.tables t
                      ON tdp.[object_id] = t.[object_id]
@@ -65,7 +53,7 @@ BEGIN
        )
 
        SET @distributionColumn = (
-              SELECT c.[name] --> Distribution Column
+              SELECT c.[name]
               FROM sys.pdw_column_distribution_properties cdp 
               INNER JOIN sys.tables t
                      ON cdp.[object_id] = t.[object_id]
@@ -82,10 +70,8 @@ BEGIN
        SET @distributionClause = ' DISTRIBUTION = '
                                                   + @distributionType
                                                   + ISNULL(' ( [' + @distributionColumn + '] )','')
-
-       --> Construct the index clause by querrying the index type
        SET @indexType = (
-              SELECT idx.[type_desc] --> Index Type
+              SELECT idx.[type_desc]
               FROM sys.indexes idx
               INNER JOIN sys.tables t
                      ON idx.[object_id] = t.[object_id]
@@ -133,8 +119,6 @@ BEGIN
               SET @indexColumns = @indexColumns + ')'
               SET @indexClause = @indexClause + @indexColumns
        END
-
-       --> Construct the entire sql command by combining the individual clauses
        SET @sqlCmd = @createClause
                                   + ' ' + @columnList
                                   + ' WITH ('  + CHAR(13)+CHAR(10) + @distributionClause
