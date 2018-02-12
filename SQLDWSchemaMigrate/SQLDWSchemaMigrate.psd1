@@ -66,7 +66,12 @@
         'Disconnect-SqlServer',
         'Export-CreateScriptsForObjects',
         'Export-ColumnChanges',
-        'Remove-CreateScriptForObjectsFiles'
+        'New-AzureDatabaseMasterKey',
+        'Remove-CreateScriptForObjectsFiles',
+        'Remove-SystemDataObject',
+        'Set-DatabaseScopedCredential',
+        'Set-ExternalDataSource',
+        'Set-ExternalFileFormat'
     )
     # Cmdlets to export from this module
     CmdletsToExport = '*'

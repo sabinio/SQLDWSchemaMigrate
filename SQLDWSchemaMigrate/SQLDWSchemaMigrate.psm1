@@ -131,9 +131,9 @@ function Export-CreateScriptsForObjects {
                     Write-Verbose "Recreating usp_ConstructCreateStatementForTable on database $DatabaseName"
                     $AddDefinitionListCmd.CommandText = "IF OBJECTPROPERTY(object_id('usp_ConstructCreateStatementForTable'),  'IsProcedure') = 1
                     DROP PROCEDURE usp_ConstructCreateStatementForTable"
-                    $AddDefinitionListCmd.ExecuteNonQuery();
+                    $AddDefinitionListCmd.ExecuteNonQuery() | Out-Null
                     $AddDefinitionListCmd.CommandText = Get-Content $PSScriptRoot\sql\usp_ConstructCreateStatementForTable.sql
-                    $AddDefinitionListCmd.ExecuteNonQuery();
+                    $AddDefinitionListCmd.ExecuteNonQuery() | Out-Null
                     $ReCreateusp_ConstructCreateStatementForTable = 1                    
                 }
                 Write-Verbose "Checking if [$SchemaName].[$ObjectName] exists on target server..."
