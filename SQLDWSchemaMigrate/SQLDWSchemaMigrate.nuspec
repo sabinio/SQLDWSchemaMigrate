@@ -36,5 +36,6 @@ Please note that this is still in development stages!
 <file src="image\icon.png"/>
 <file src="sql\AddTableChanges.sql" target="sql"/>
 <file src="sql\usp_ConstructCreateStatementForTable.sql" target="sql"/>
+<file src="sql\usp_ConstructCreateStatementForExternalTable.sql" target="sql"/>
 </files>
 </package>

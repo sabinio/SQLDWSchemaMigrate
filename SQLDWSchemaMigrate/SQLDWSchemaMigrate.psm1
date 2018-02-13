@@ -42,7 +42,7 @@ function Export-CreateScriptsForObjects {
         "VIEW" {$TypeForDropStatement = 'VIEW'; break}
         default {break}
     }
-    $ReCreateusp_ConstructCreateStatementForTable = 0
+    $ReCreateProc = 0
     [System.Collections.ArrayList]$FilePaths = @()
     $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand
     $GetObjectListCmd.Connection = $DbCon
@@ -121,20 +121,26 @@ function Export-CreateScriptsForObjects {
                     Write-Verbose "Schema [$SchemaName] already exists..."
                 }
             }
-            elseif ($ObjectType -eq "Tables") {
+            elseif ($ObjectType -in "Tables", "ExternalTables") {
                 $ExecuteCreateTable = New-Object System.Data.SqlClient.SqlCommand
+                $ExecuteCreateTable.CommandTimeout = 300
                 $ExecuteCreateTable.Connection = $TableCon
                 $SchemaName = $ObjectListReader.GetString(0)
                 $ObjectName = $ObjectListReader.GetString(1)
                 $ObjectId = $ObjectListReader.GetInt32(2)
-                if ($ReCreateusp_ConstructCreateStatementForTable -eq 0) {
-                    Write-Verbose "Recreating usp_ConstructCreateStatementForTable on database $DatabaseName"
-                    $AddDefinitionListCmd.CommandText = "IF OBJECTPROPERTY(object_id('usp_ConstructCreateStatementForTable'),  'IsProcedure') = 1
-                    DROP PROCEDURE usp_ConstructCreateStatementForTable"
-                    $AddDefinitionListCmd.ExecuteNonQuery() | Out-Null
-                    $AddDefinitionListCmd.CommandText = Get-Content $PSScriptRoot\sql\usp_ConstructCreateStatementForTable.sql
-                    $AddDefinitionListCmd.ExecuteNonQuery() | Out-Null
-                    $ReCreateusp_ConstructCreateStatementForTable = 1                    
+                if ($ReCreateProc -eq 0) {
+                    switch ($ObjectType) {
+                        "Tables" {$proc = "usp_ConstructCreateStatementForTable"; break}
+                        "ExternalTables" {$proc = "usp_ConstructCreateStatementForExternalTable"; break}
+                    }
+                    Write-Verbose "Recreating $proc on database $DatabaseName"
+                    $AddDefinitionListCmd.CommandText = "IF OBJECTPROPERTY(object_id('$proc'),  'IsProcedure') = 1
+                    DROP PROCEDURE $proc"
+                    $AddDefinitionListCmd.ExecuteNonQuery() 
+                    $AddDefinitionListCmd.CommandText = Get-Content $PSScriptRoot\sql\$proc.sql
+                    $AddDefinitionListCmd.ExecuteNonQuery()
+                    $ReCreateProc = 1                    
+
                 }
                 Write-Verbose "Checking if [$SchemaName].[$ObjectName] exists on target server..."
                 $AddDefinitionListCmd.CommandText = "
@@ -166,11 +172,12 @@ function Export-CreateScriptsForObjects {
                                         WHERE obj.[object_id] = @objectId);
 
                         DECLARE @sqlCmd AS VARCHAR(8000);
-                        EXEC [usp_ConstructCreateStatementForTable] @schemaName, @tableName, '', @sqlCmd OUTPUT;
+                        EXEC [$proc] @schemaName, @tableName, '', @sqlCmd OUTPUT;
                         SELECT @sqlCmd;"
                     $ExecuteCreateTable.CommandText = $sqlCommandText 
                     $CreateStatement = $ExecuteCreateTable.ExecuteScalar()
                     try {
+                        $AddDefinitionListCmd.CommandTimeout = 300
                         $AddDefinitionListCmd.CommandText = $CreateStatement
                         $AddDefinitionListQuery = $AddDefinitionListCmd.ExecuteNonQuery()
                         $AddDefinitionListQuery | Out-Null
@@ -178,6 +185,9 @@ function Export-CreateScriptsForObjects {
                     catch {
                         $ohDear = "$CreateStatement `n failed with the following error - $($_.Exception)"
                         throw $ohDear
+                    }
+                    finally{
+                        $AddDefinitionListCmd.CommandTimeout = 30
                     }
                 }
                 elseif ($tableExists -eq 0) {

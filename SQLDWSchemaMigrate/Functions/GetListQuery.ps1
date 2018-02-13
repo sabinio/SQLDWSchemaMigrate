@@ -14,7 +14,7 @@ Function Get-ListQuery {
     param(
         [String]$ObjectType
     )
-    if ($ObjectType -notin ("schemas", "StoredProcedures", "Tables", "Views", "ScalarFunctions", "Columns")) {
+    if ($ObjectType -notin ("schemas", "StoredProcedures", "Tables", "Views", "ScalarFunctions", "Columns", "ExternalTables")) {
         $err_msg = "ObjectType parameter not one of the following, so will not return anything - schemas, StoredProcedures, Tables, Views, Functions, COlumns!"
         Throw $err_msg
     }
@@ -35,6 +35,9 @@ Function Get-ListQuery {
     }
     elseif ($ObjectType -eq "Columns") {
         $QueryToReturn = "SELECT s.name, o.name, c.name, c.user_type_id, C.COLUMN_ID, c.max_length FROM sys.columns c INNER JOIN sys.objects o ON c.object_id = o.object_id INNER join sys.schemas s on s.schema_id = o.schema_id INNER JOIN sys.tables t ON t.object_id= o.object_id WHERE o.type = 'U' AND o.name NOT IN ('sourceColumns' ,'sourceColumnsNew','SourceDefinitions') AND t.is_external = 0"
+    }
+    elseif ($objectType -eq "ExternalTables"){
+        $QueryToReturn = "select sch.name as schema_name, obj.name as object_name, obj.object_id from sys.tables obj inner join sys.schemas sch on obj.schema_id = sch.schema_id where is_external = 1 and obj.name not like '%_Backup%' and obj.name not like '%_BKP%' and obj.name not like '%_tmp%' and obj.name not like '%_wDuplicates%' and sch.name != 'temp' ORDER BY 1, 2;"
     }
     Return $QueryToReturn
 }

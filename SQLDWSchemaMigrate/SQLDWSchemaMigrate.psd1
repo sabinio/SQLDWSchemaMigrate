@@ -92,3 +92,7 @@
     PrivateData = ''
  
 }
+# need to create an external table that makes use of external data source
+# can i drop external data source and external file type when a table exists that relies on them?
+# if so, great, can drop and create where there is drift.
+# if not, then have a problem!
