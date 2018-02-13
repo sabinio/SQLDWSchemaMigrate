@@ -21,17 +21,19 @@ If you're deploying an entire database, then it might take a while - in my testi
 The more objects you have to deploy, and the more objects that exist in your source database, the longer a deployment takes, which is why it is best to deploy often to minimize the time taken and risk of failure.  
 
 ### What Objects Are Migrated?
-Currently there are 5 Objects supported; 
+Currently there are 10 Objects supported; 
 1. tables
 2. views
 3. schemas
 4. stored procedures
-5. scalar functions. 
+5. scalar functions
+6. External Data Sources
+7. External File Formats
+8. External Tables
+9. Database-scoped Credentials
+10. Database Master Key
 
-There is a need to add the following - 
-1. External Data Sources
-2. External File Formats
-3. External Tables
+In addition, columns added to tables that already exist on the server are migrated. 
 
 ### How Are Objects Migrated?
 Some objects can be dropped and re-created; however where data loss is a possibility, this is obviously a very bad idea. Despite this, the process for all objects follows a similar pattern - 
@@ -46,6 +48,23 @@ Below details individually how objects are migrated.
 #### Schemas
 All user schemas are listed from source database and if they do not exist then are created on target database. This step needs to run prior to any other object as there may be a dependency.
 
+#### External File Formats and External Data Sources
+All of the External File Formats/Data Sources are listed from the target. For each of these objects, a SQL Command is created and executed on the target. Note it is only created if it does not exist - currnelty it is not possible to alter either of these obejcts without dropping and re-creating. This is complicated by the fact that you cannot drop either of these objects if there is an external table which references them. This option may or may not be added in the near future!
+
+#### Database-Scoped Credentials
+External Data Sources use database-scoped credentials to access the external data. If credential does nto exist it is created. however it if exists it is altered. This allows to modify the IDENTITY and SECRET of a credential.
+
+Because it is not possible to read the SECRET from the source server, a PowerShell variable that matches the name of the credential set to the value of the secret must exist in order to set the SECRET. If this does not exist, then the Function will fail. It is possible to override this behaviour, as noted inteh the Get-Help for the function ```set-databasescopedcredentials```
+```powershell
+# .Parameter ContinueOnMissingSecrets
+# If not all of your credentials require secrets, then you can include this switch. 
+# .Parameter alterCredentialsWithSecretOnly
+# Like the switch above, this will prevent secrets from being accidentally dropped on the target server if a PowerShell variable is not specified in the session.
+# However unlike the Switch above that omits an error being thrown, this will continue to alter those credentials that have secrets set. 
+```
+#### Database Master Keys
+As Crednetials require database master keys to be created, the function ```New-AzureDatabaseMasterkey``` will create such a key. This needs to be explicitly executed with a password.
+
 #### Functions, Views and Procedures
 Details of objects are listed from source database. The source definition of the object is compared to the defintion on the target database. If the definitions do not match the object is dropped on the target and re-created. No data loss can occur.
 
@@ -59,15 +78,15 @@ Views in SQL Data Warehouse are metadata only. Consequently the following option
 
 Because of this, no data loss can occur.
 
-#### Tables
-Tables are a little more complicated. There is a process to create tables that are not in target but are in source that follows the same process as the objects above, except that a stored procedure is created (usp_ConstructCreateStatementForTable) and executed for each table that needs to be created.
+#### Tables And External Tables
+Tables are a little more complicated. There is a process to create tables that are not in target but are in source that follows the same process as the objects above, except that a stored procedure is created (usp_ConstructCreateStatementForTable for typical tables and usp_ConstructCreateStatementForExternalTable for external tables) and executed for each table that needs to be created.
 
 ##### Managing table changes
 The advice from Microsoft is never drop columns from an Azure DataWarehouse, only add more columns. Therefore at this time, only adding columns is supported through the migration method. The process to add columns is - 
 
 * Create table in target database that will store all columns for all tables (this table is created as dbo.sourceColumns)
 * Get sum of columns for each table on source, and do the same for target database
-* Loop through all the rows fom the source resultset and find the corresponding table in the target resultset
+* Loop through all the rows from the source resultset and find the corresponding table in the target resultset
 * If the number of rows match, do nothing, if they do not add details of columns from source table to sourceColumns table on target database. When this is complete execute a script that will add the columnsto the corresponding table on the target database.
 
 This is the schema of the table that is created on the target database to store columns - 
@@ -93,13 +112,13 @@ If you add a column in the middle of the table on the source database then the c
 As of January 2018, according to [Microsoft Docs](https://docs.microsoft.com/en-us/sql/relational-databases/tables/rename-columns-database-engine), you cannot rename columns on Azure SQL Data Warehouse.   
 
 ##### What Happens If I Drop A Column on the Source Database?
-Currently the behaviour  is that it is not dropped on the target database. THere's plans to add a "drop in target not in source" type functionality at some point. 
+Currently the behaviour is that it is not dropped on the target database. THere's plans to add a "drop in target not in source" type functionality at some point. 
 
 ##### What Happens to Table Changes on the Target Database When I Run Apply Changes from Source?
 Basically, you're on your own. The idea of this module is to automate aligning databases from source to target. If you go and make changes to the target database not using this PowerSHell Module then I don't really know how the changes will apply and there's a limit to how much can be anticipated.
 
 #### Are There Any Other Objects Created on The Databases By This Module
-A stored procedure called "usp_ConstructCreateStatementForTable" exists, which is used to generated the ```CREATE TABLE``` statement. This is created on the source database. The columns are added when the module runs ```AddTableChanges.sql```
+Two stored procedures called ```usp_ConstructCreateStatementForTable``` and ```usp_ConstructCreateStatementForExternalTable``` are created, which is used to generated the ```CREATE <EXTERNAL> TABLE``` statement. This is created on the source database. The columns are added when the module runs ```AddTableChanges.sql```
 
 #### What Happens If I Rename an Object on the Source Database?
 As of January 2018, and as with columns, renaming objects is not supported by Azure SQL Data Warehouse.
@@ -151,6 +170,7 @@ $listTablesQuery = Get-ListQuery "Tables"
 $listFunctionsQuery = Get-ListQuery "ScalarFunctions"
 $listViewsQuery = Get-ListQuery "Views"
 $listColumnsQuery = Get-ListQuery "Columns"
+$listExternalTablesQuery = Get-ListQuery "ExternalTables"
 
 ##########
 #        #
@@ -170,9 +190,13 @@ $listColumnsQuery = Get-ListQuery "Columns"
 
 $date1=get-date
 
+Set-DatabaseScopedCredential -dbcon $conn -targetCon $targetConn
+Set-ExternalDataSource -DbCon $conn -targetCon $targetConn
+Set-ExternalFileFormat -DbCon $conn -targetCon $targetConn
 Export-CreateScriptsForObjects -DbCon $conn -QueryForObjectList $listSchemasQuery -ObjectType "Schemas" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
 Export-CreateScriptsForObjects -DbCon $conn -TableCon $columnConn -QueryForObjectList $listTablesQuery -ObjectType "Tables" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
-Export-ColumnChanges -DbCon $conn $columnConn $listColumnsQuery -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $aaduName -password $aadpword -TargetColDbCon $targetConn -TargetSqlServerName $ServerName -sqlTargetDatabaseName $targetDatabaseName -OutputDirectory $pathToSaveFiles -verbose
+Export-CreateScriptsForObjects -DbCon $conn -TableCon $columnConn -QueryForObjectList $listExternalTablesQuery -ObjectType "ExternalTables" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
+Export-ColumnChanges -DbCon $conn $columnConn $listColumnsQuery -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $uName -password $pword -TargetColDbCon $targetConn -TargetSqlServerName $ServerName -sqlTargetDatabaseName $targetDatabaseName -OutputDirectory $pathToSaveFiles -verbose
 Export-CreateScriptsForObjects -DbCon $conn -QueryForObjectList $listViewsQuery -ObjectType "VIEW" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
 Export-CreateScriptsForObjects -DbCon $conn -QueryForObjectList $listFunctionsQuery -ObjectType "SQL_SCALAR_FUNCTION" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
 Export-CreateScriptsForObjects -DbCon $conn -QueryForObjectList $listStoredProceduresQuery -ObjectType "SQL_STORED_PROCEDURE" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose

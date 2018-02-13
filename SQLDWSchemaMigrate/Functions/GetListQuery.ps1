@@ -15,7 +15,7 @@ Function Get-ListQuery {
         [String]$ObjectType
     )
     if ($ObjectType -notin ("schemas", "StoredProcedures", "Tables", "Views", "ScalarFunctions", "Columns", "ExternalTables")) {
-        $err_msg = "ObjectType parameter not one of the following, so will not return anything - schemas, StoredProcedures, Tables, Views, Functions, COlumns!"
+        $err_msg = "ObjectType parameter not one of the following, so will not return anything - schemas, StoredProcedures, Tables, Views, Functions, Columns! ExternalTables"
         Throw $err_msg
     }
     if ($ObjectType -eq "Schemas") {

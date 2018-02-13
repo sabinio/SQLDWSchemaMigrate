@@ -112,4 +112,5 @@ Set-ExternalFileFormat -DbCon $conn -targetCon $targetConn
             }
         }
     }
+    $fieldformatListReader.Dispose()
 }

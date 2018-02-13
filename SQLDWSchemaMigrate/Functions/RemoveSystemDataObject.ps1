@@ -20,7 +20,6 @@ Remove-SystemDataObject -systemdataobject $targetResultSet
     )
     try {
         $SystemDataObject.Dispose()
-        Write-Host "Disposed of object $SystemDataObject"
         Return
     }
     catch {
