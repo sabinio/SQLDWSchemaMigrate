@@ -19,7 +19,7 @@ Function Compare-TableDelta {
         [System.Data.SqlClient.SqlConnection]$sourceConn, 
         [System.Data.SqlClient.SqlConnection]$targetConn
     ) 
-    $SqlQuerySumOfColumns = "	SELECT s.name as schemaName, o.name as TableName, COUNT(*) as SumOfColumns
+    $SqlQuerySumOfColumns = "SELECT s.name as schemaName, o.name as TableName, COUNT(*) as SumOfColumns
 		FROM sys.columns c
 		INNER JOIN sys.objects o ON c.object_id = o.object_id
 		INNER JOIN sys.schemas s ON s.schema_id = o.schema_id
@@ -41,19 +41,26 @@ Function Compare-TableDelta {
     $DataAdapter.Fill($targetResultSet) | Out-Null;
     [System.Data.DataTable]$sourceDataSet = $sourceResultSet.Tables[0];
     [System.Data.DataTable]$targetDataSet = $targetResultSet.Tables[0];
-    $same = Compare-Rows $sourceDataSet $targetDataSet;
-    if ($same.Count -eq 0) {
-        Write-Host "The number of columns are correct for each table that exists on both source and target databases.";
+    try{
+        $same = Compare-Rows $sourceDataSet $targetDataSet;
+        if ($same.Count -eq 0) {
+            Write-Host "The number of columns are correct for each table that exists on both source and target databases.";
+        }
+        else {
+            Write-Host  "There are some tables with columns that exist in source but not on target. Determining which tables require columns added to.";
+            Return $same
+        }
     }
-    else {
-        Write-Host  "There are some tables with columns that exist in source but not on target. Determining which tables require columns added to.";
-        Return $same
+    catch{
+        Write-Host $_.Exception
     }
-    $sourceDataSet.Dispose();
-    $targetDataSet.Dispose();
-    $sourceResultSet.Dispose();
-    $targetResultSet.Dispose();
-    $DataAdapter.Dispose();
+    finally{
+    Remove-SystemDataObject -SystemDataObject $sourceDataSet
+    Remove-SystemDataObject -SystemDataObject $targetDataSet
+    Remove-SystemDataObject -SystemDataObject $sourceResultSet
+    Remove-SystemDataObject -SystemDataObject $targetResultSet
+    Remove-SystemDataObject -SystemDataObject $DataAdapter
+    }
 }
 Function Compare-Rows {
     <#
