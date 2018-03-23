@@ -2,7 +2,7 @@
 
 SET NOCOUNT ON;
 
--- All tables currently in "production db" taht are also in sourceColumns table
+-- All tables currently in "production db" that are also in sourceColumns table
 SELECT *
 	,row_number() OVER (
 		ORDER BY (
@@ -32,6 +32,10 @@ DECLARE @TotalTables INT
 DECLARE @counter INT
 DECLARE @currentTable NVARCHAR(max);
 DECLARE @currentSchema NVARCHAR(max);
+DECLARE @objectSchemaAndName NVARCHAR(max);
+
+DECLARE @Now DATETIME;
+SET @Now = GETDATE();
 
 SET @TotalTables = (
 		SELECT count(*)
@@ -42,17 +46,13 @@ SET @counter = 1
 WHILE (@counter <= @TotalTables)
 BEGIN
 	-- Current table in prod db and collecting all column names it should have based on source columns
-	SET @currentTable = (
-			SELECT object_name
-			FROM #Temp1
-			WHERE number = @counter
-			);
-	SET @currentSchema = (
-			SELECT schema_name
-			FROM #Temp1
-			WHERE number = @counter
-			);
-      
+	SELECT 	@currentTable = object_name,
+			@currentSchema = schema_name,
+			@objectSchemaAndName = object_name + '.' + schema_name
+	FROM #Temp1
+	WHERE number = @counter
+
+   
 	SELECT sys.columns.name
 		,sys.columns.user_type_id, sys.columns.max_length
 	INTO #tempprodtablecolumns
@@ -140,6 +140,8 @@ BEGIN
 		SET @SQL = 'ALTER TABLE ' + @currentSchema +'.'+ @currentTable + ' ADD ' + @currentcolname + ' ' + @coltypename;
 
 		PRINT '---------- Altering statement: ' + @SQL + ' ---------- ';
+
+		INSERT INTO DDLStatements (TargetObject, DDLStmt, CreateDate) VALUES (@objectSchemaAndName, @SQL, @Now)
 
 		EXEC (@SQL);
 

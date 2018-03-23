@@ -20,5 +20,5 @@ CREATE MASTER KEY ENCRYPTION BY PASSWORD = $masterKeyPassword"
     $MasterkeyCmd = New-Object System.Data.SqlClient.SqlCommand
     $MasterkeyCmd.Connection = $TargetDbCon
     $MasterkeyCmd.CommandText = $sqlCommandText
-    $GetObjectListCmd.ExecuteNonQuery() | Out-Null
+    $MasterkeyCmd.ExecuteNonQuery() | Out-Null
 }
