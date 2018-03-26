@@ -12,9 +12,9 @@ There are two switches here to protect users from accidentally wiping secrets on
     The Switch  "alterCredentialsWithSecretOnly" means that if a variable is not found then the credential will not be updated.
 If no variable exists, and the switches above are not used, then the credential will be updated to no longer have a password.
 Sadly there is no way of determining which credentials have secrets set on the source, hence the fail safe Switches.
-.Parameter dbcon
+.Parameter SourceDbcon
 The source database connection
-.Parameter targetcon
+.Parameter TargetDbCon
 The target database connection
 .Parameter ContinueOnMissingSecrets
 If not all of your credentials require secrets, then you can include this switch. 
@@ -23,13 +23,13 @@ Like the switch above, this will prevent secrets from being accidentally dropped
 However unlike the Switch above that omits an error being thrown, this will continue to alter those credentials that have secrets set. 
 .Example
 $conn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $uName -password $pword
-$targetConn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $targetDatabaseName -userName $uName -password $pword
+$TargetDbConn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $targetDatabaseName -userName $uName -password $pword
 
-Set-DatabaseScopedCredential -dbcon $conn -targetCon $targetConn -alterCredentialsWithSecretOnly -ContinueOnMissingSecrets
+Set-DatabaseScopedCredential -SourceDbcon $conn -TargetDbCon $TargetDbConn -alterCredentialsWithSecretOnly -ContinueOnMissingSecrets
 #>
     param(
-        [System.Data.SqlClient.SqlConnection]$DbCon, 
-        [System.Data.SqlClient.SqlConnection]$targetCon,
+        [System.Data.SqlClient.SqlConnection]$SourceDbcon, 
+        [System.Data.SqlClient.SqlConnection]$TargetDbCon,
         [Switch]$ContinueOnMissingSecrets,
         [Switch]$alterCredentialsWithSecretOnly
     )
@@ -48,7 +48,7 @@ Set-DatabaseScopedCredential -dbcon $conn -targetCon $targetConn -alterCredentia
     $sqlCommandText = "select name, principal_id, credential_id, credential_identity from sys.database_scoped_credentials where credential_id in (
         select distinct credential_id from sys.external_data_sources)"
     $GetCredentialListCmd = New-Object System.Data.SqlClient.SqlCommand
-    $GetCredentialListCmd.Connection = $DbCon
+    $GetCredentialListCmd.Connection = $SourceDbcon
     $GetCredentialListCmd.CommandText = $sqlCommandText
     $CredentialListReader = $GetCredentialListCmd.ExecuteReader();
     if ($CredentialListReader.HasRows) {
@@ -80,7 +80,7 @@ Set-DatabaseScopedCredential -dbcon $conn -targetCon $targetConn -alterCredentia
         }
         if ($null -ne $sqlCreateScopedCredential) {
             $newsqlCreateScopedCredentialCmd = New-Object System.Data.SqlClient.SqlCommand
-            $newsqlCreateScopedCredentialCmd.Connection = $targetCon
+            $newsqlCreateScopedCredentialCmd.Connection = $TargetDbCon
             $newsqlCreateScopedCredentialCmd.CommandText = $sqlCreateScopedCredential
             try {
                 Write-Host "Executing statement to create/alter Database Scoped Credential $credentialName"

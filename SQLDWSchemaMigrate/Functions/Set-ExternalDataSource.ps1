@@ -6,21 +6,21 @@ Creates External Data Sources
 .Description
 Get each of the external data sources from the source database.
 If External Data Source does not exist on target server, it is created.
-.Parameter dbcon
+.Parameter SourceDbcon
 The source database connection
-.Parameter targetcon
+.Parameter TargetDbCon
 The target database connection
 .Example
-Set-ExternalDataSources -DbCon $conn -targetCon $targetConn
+Set-ExternalDataSources -DbCon $conn -targetCon $TargetDbConn
 #>
     param(
-        [System.Data.SqlClient.SqlConnection]$DbCon, 
-        [System.Data.SqlClient.SqlConnection]$targetCon
+        [System.Data.SqlClient.SqlConnection]$SourceDbcon, 
+        [System.Data.SqlClient.SqlConnection]$TargetDbCon
     )
     $sqlCommandText = "select eds.name, eds.type_desc, eds.location, dsc.name as credname, eds.database_name, eds.shard_map_name, eds.resource_manager_location from sys.external_data_sources eds
     left join sys.database_scoped_credentials dsc on dsc.credential_id = eds.credential_id"
     $GetDataSourceListCmd = New-Object System.Data.SqlClient.SqlCommand
-    $GetDataSourceListCmd.Connection = $DbCon
+    $GetDataSourceListCmd.Connection = $SourceDbcon
     $GetDataSourceListCmd.CommandText = $sqlCommandText
     $DataSourceListReader = $GetDataSourceListCmd.ExecuteReader();
     if ($DataSourceListReader.HasRows) {
@@ -66,7 +66,7 @@ Set-ExternalDataSources -DbCon $conn -targetCon $targetConn
             }
             $createExternalDataSource = $createExternalDataSource + " );"
             $TargetDataSourceCmd = New-Object System.Data.SqlClient.SqlCommand
-            $TargetDataSourceCmd.Connection = $targetCon
+            $TargetDataSourceCmd.Connection = $TargetDbCon
             $TargetDataSourceCmd.CommandText = $createExternalDataSource
             try {
                 $TargetDataSourceCmd.ExecuteNonQuery() | Out-Null    
