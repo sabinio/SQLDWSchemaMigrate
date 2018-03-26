@@ -94,7 +94,7 @@ Function Compare-Rows {
                 $output += (@{$sourceRow.ItemArray[0] = $($sourceRow.ItemArray[1])});
             }
             else {
-                Write-Host "Column count matches for $($targetRow[0]).$($targetRow[1]) ($($targetRow[2]))"
+                Write-Verbose "Column count matches for $($targetRow[0]).$($targetRow[1]) ($($targetRow[2]))"
             } 
         }
         else {

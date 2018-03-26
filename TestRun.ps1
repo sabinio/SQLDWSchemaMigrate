@@ -1,20 +1,26 @@
-﻿
-
-
-Set-StrictMode -Version 2.0
-cls
+﻿cls
 
 Import-Module 'C:\Repos\SQLDWSchemaMigrate\SQLDWSchemaMigrate\SQLDWSchemaMigrate.psm1' -force 
+
+cls
 
 
 ###########################################################################################################################################################
 $ServerName = 'asani-dw-live-eun-d003.database.windows.net'
 $DatabaseName = 'ADSSourceSchema'
 $targetDatabaseName = 'ADSTargetDatabase'
-$uName = "ben.howard@asos.com"
-$pword =                                                                                                                                                                        "Orangeyellow23"
 
-$pathToSaveFiles = 'C:\temp\SQLDWCompare'
+if ($DBCredential) {
+    Write-Host "Using saved credential.."
+}
+else {    
+    $DBCredential = Get-Credential 
+}
+
+$uName = $DBCredential.UserName
+$pword = $DBCredential.GetNetworkCredential().Password
+
+$VerbosePreference = 'silentlycontinue'
 
 
 $sourceDbcon = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $uName -password $pword
@@ -22,12 +28,8 @@ $targetDbcon = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $ta
 $columnConn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $uName -password $pword
 
 
-$listStoredProceduresQuery = $null #Get-ListQuery "SQL_STORED_PROCEDURE"
-$listTablesQuery = $null #Get-ListQuery "Tables"
-$listFunctionsQuery = $null #Get-ListQuery "ScalarFunctions"
-$listViewsQuery = $null #Get-ListQuery "Views"
-$listColumnsQuery = $null #Get-ListQuery "Columns"
-$listExternalTablesQuery = $null #Get-ListQuery "ExternalTables"
+
+
 
 ##########
 #        #
@@ -47,19 +49,19 @@ $listExternalTablesQuery = $null #Get-ListQuery "ExternalTables"
 
 $date1=get-date
 
-New-DDLStatementsTable -TargetDbCon $targetDbcon
+New-DDLStatementsTable -TargetDbCon $targetDbcon 
 
 #Set-DatabaseScopedCredential -SourceDbcon $sourceDbcon -targetCon $targetDbcon
 #Set-ExternalDataSource -SourceDbcon $sourceDbcon -targetCon $targetDbcon
 #Set-ExternalFileFormat -SourceDbcon $sourceDbcon -targetCon $targetDbcon
 
-Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon                                           -ObjectType "Schemas"        -TargetDbCon $targetDbcon -OutputDirectory $pathToSaveFiles -verbose
-Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon -SourceDBConnTabCreateStmnts $columnConn  -ObjectType "Tables"         -TargetDbCon $targetDbcon -OutputDirectory $pathToSaveFiles -verbose
-Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon -SourceDBConnTabCreateStmnts $columnConn  -ObjectType "ExternalTables"  -TargetDbCon $targetDbcon -OutputDirectory $pathToSaveFiles -verbose
-Export-ColumnChanges           -SourceDbcon $sourceDbcon -ColDbCon $columnConn -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $uName -password $pword -TargetColDbCon $targetDbcon -TargetSqlServerName $ServerName -sqlTargetDatabaseName $targetDatabaseName -OutputDirectory $pathToSaveFiles -verbose
-Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon                                           -ObjectType "VIEW"                 -TargetDbCon $targetDbcon -OutputDirectory $pathToSaveFiles -verbose
-Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon                                           -ObjectType "SQL_SCALAR_FUNCTION" -TargetDbCon $targetDbcon -OutputDirectory $pathToSaveFiles -verbose
-Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon                                            -ObjectType "SQL_STORED_PROCEDURE" -TargetDbCon $targetDbcon -OutputDirectory $pathToSaveFiles -verbose
+#Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon                                           -ObjectType "Schemas"        -TargetDbCon $targetDbcon  
+#Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon -SourceDBConnTabCreateStmnts $columnConn  -ObjectType "Tables"         -TargetDbCon $targetDbcon  
+#Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon -SourceDBConnTabCreateStmnts $columnConn  -ObjectType "ExternalTables"  -TargetDbCon $targetDbcon 
+Export-ColumnChanges           -SourceDbcon $sourceDbcon -ColDbCon $columnConn -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $uName -password $pword -TargetColDbCon $targetDbcon   
+#Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon                                           -ObjectType "VIEW"                 -TargetDbCon $targetDbcon 
+#Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon                                           -ObjectType "SQL_SCALAR_FUNCTION" -TargetDbCon $targetDbcon  
+#Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon                                           -ObjectType "SQL_STORED_PROCEDURE" -TargetDbCon $targetDbcon 
 
 
 

@@ -31,7 +31,8 @@ function Export-CreateScriptsForObjects {
         [String]$OutputDirectory ) 
 
     if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
-        $OutputDirectory = $PSScriptRoot
+        $OutputDirectory = $Env:temp
+        Write-Verbose "`$OutputDirectory is $OutputDirectory"
     }
 
     Write-Verbose "Checking for differences within object type '$ObjectType'"
@@ -248,7 +249,8 @@ Function Remove-CreateScriptForObjectsFiles {
         $sqlDatabaseName,
         [String]$OutputDirectory) 
     if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
-        $OutputDirectory = $PSScriptRoot
+        $OutputDirectory = $Env:temp
+        Write-Verbose "`$OutputDirectory is $OutputDirectory"
     }
     $PathToOutput = "$OutputDirectory\$sqlDatabaseName\$ObjectType\"
     if (Test-Path $PathToOutput) {
@@ -272,10 +274,6 @@ function Export-ColumnChanges {
    Connection to source database. Whilst looping through tables, get column info on current table
    .Parameter sqlDatabaseName
    Used when inserting into SourceColumns table
-   .Parameter TargetSqlServerName
-   Used when running sqlcmd to execute script at end of process
-   .Parameter sqlTargetDatabaseName
-   Used when running sqlcmd to execute script at end of process
    .Parameter TargetColDbCon
    used to create SourceColumns table on target database
    .Parameter userName
@@ -283,7 +281,7 @@ function Export-ColumnChanges {
    .Parameter Password
    Corresponding password for username when connecting via sqlcmd
    .Example
-   Export-ColumnChanges -DbCon $conn $columnConn $listColumnsQuery -tableQueryList $listTablesQuery -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $aaduName -password $aadpword -TargetSqlServerName $ServerName -sqlTargetDatabaseName $targetDatabaseName -OutputDirectory $pathToSaveFiles
+   Export-ColumnChanges -DbCon $conn $columnConn $listColumnsQuery -tableQueryList $listTablesQuery -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $aaduName -password $aadpword -OutputDirectory $pathToSaveFiles
 #>
     [CmdletBinding()]
     param(
@@ -291,16 +289,19 @@ function Export-ColumnChanges {
         [System.Data.SqlClient.SqlConnection]$ColDbCon, 
         $sqlServerName,
         $sqlDatabaseName,
-        $TargetSqlServerName,
-        $sqlTargetDatabaseName,
         [System.Data.SqlClient.SqlConnection]$TargetColDbCon,
         $userName,
         $Password,
         [String]$OutputDirectory ) 
 
     if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
-        $OutputDirectory = $PSScriptRoot
+        $OutputDirectory = $Env:temp
     }
+
+    Write-Verbose "`$OutputDirectory is $OutputDirectory"
+
+    $TargetSqlServerName = $TargetColDbCon.DataSource
+    $TargetDatabaseName = $TargetColDbCon.Database
 
     $QueryForObjectList = Get-ListQuery -ObjectType 'Columns'
 
@@ -354,10 +355,13 @@ function Export-ColumnChanges {
                     $InsertStatement += "SELECT '$SqlDatabaseName', '$schemaName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId', '$maxLength' UNION ALL`n"
                 }
                 $InsertStatement = $InsertStatement.Substring(0, $InsertStatement.Length - 10)
+
+                Write-Host "`$TargetSqlServerName = $TargetSqlServerName"
+                Write-Host "`$TargetDatabaseName = $TargetDatabaseName"
                 
                 $PathToOutput = "$OutputDirectory\$sqlDatabaseName\InsertStatement_$schemaName$ColumnTable.sql"
-                New-item -path $PathToOutput -value $InsertStatement -force | Out-Null
-                sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $sqlTargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+                New-item -path $PathToOutput -value $InsertStatement -type 'file' -force | Out-Null
+                sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $TargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
                 if ($LASTEXITCODE -ne 0) {
                     $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
                     Throw $msgToThrow
@@ -367,8 +371,8 @@ function Export-ColumnChanges {
         }
     }
     if ($whatIs.Count -gt 0) {
-        Write-Host "Running script on server $TargetSqlServerName, database $sqlTargetDatabaseName to add any missing columns, this can take some time..."
-        sqlcmd -i $PSScriptRoot\sql\AddTableChanges.sql -S $TargetSqlServerName -d $sqlTargetDatabaseName  -G -U $Username -P $Password -I  -y 0 -b -j  
+        Write-Host "Running script on server $TargetSqlServerName, database $TargetDatabaseName to add any missing columns, this can take some time..."
+        sqlcmd -i $PSScriptRoot\sql\AddTableChanges.sql -S $TargetSqlServerName -d $TargetDatabaseName  -G -U $Username -P $Password -I  -y 0 -b -j  
         if ($LASTEXITCODE -ne 0) {
             $msgToThrow = "Something went wrong whilst adding new columns. Consult the output of sqlcmd above for issue."
             Throw $msgToThrow 

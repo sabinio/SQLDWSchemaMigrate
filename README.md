@@ -137,10 +137,10 @@ The -G option defines that sqlcmd uses Azure Active Directory for authentication
 ### Where Are Created Files Stored?
 Currently no files are being created. This feature may change! 
 
-~~On both ```Remove-CreateScriptForObjectsFiles``` and ```Export-CreateScriptsForObjects``` there is a parameter called ```$outputDir```. Set this to the location you want the "CREATE" statements saved to. If this parameter is not used then ```$PSScriptRoot``` is used. EG -~~
+~~On both ```Remove-CreateScriptForObjectsFiles``` and ```Export-CreateScriptsForObjects``` there is a parameter called ```$outputDir```. Set this to the location you want the "CREATE" statements saved to. If this parameter is not used then ```$env:temp``` is used. EG -~~
 ```powershell
 ~~  if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
-            $OutputDirectory = $PSScriptRoot
+            $OutputDirectory = $Env:temp
 	}~~
 ```
 

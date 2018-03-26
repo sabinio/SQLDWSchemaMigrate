@@ -19,4 +19,7 @@ New-DDLStatementsTable -TargetDbCon
     $Cmd.Connection = $TargetDbCon
     $Cmd.CommandText = $sqlCommandText
     $Cmd.ExecuteNonQuery() | Out-Null
+
+    Write-Verbose "DDLStatements table (re)created.."
+
 }
