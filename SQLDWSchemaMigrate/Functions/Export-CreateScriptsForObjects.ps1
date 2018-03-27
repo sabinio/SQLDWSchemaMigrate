@@ -28,8 +28,9 @@ function Export-CreateScriptsForObjects {
 
     if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
         $OutputDirectory = $Env:temp
-        Write-Verbose "`$OutputDirectory is $OutputDirectory"
     }
+
+    Write-Verbose "`$OutputDirectory is $OutputDirectory"
 
     Write-Verbose "Checking for differences within object type '$ObjectType'"
 
@@ -58,8 +59,7 @@ function Export-CreateScriptsForObjects {
                 $ObjectId = $ObjectListReader.GetInt32(2)
                 $definitionForFile = $ObjectListReader.GetString(4)
                 $sqlCommandText = "select mod.definition from sys.objects obj inner join sys.schemas sch on obj.schema_id = sch.schema_id inner join [sys].[sql_modules] mod on mod.object_id = obj.object_id where obj.type_desc = '$ObjectType' and sch.name = '$schemaName' and obj.name = '$objectName';"
-                $AddDefinitionListCmd.CommandText = "SET NOCOUNT ON;
-                $sqlCommandText"
+                $AddDefinitionListCmd.CommandText = "SET NOCOUNT ON;`n$sqlCommandText"
                 $executeCreateOnTarget = 0
                 $executeDropOnTarget = 0
                 $gren = $AddDefinitionListCmd.ExecuteScalar();
@@ -79,7 +79,7 @@ function Export-CreateScriptsForObjects {
                     $SQLToExecute = "DROP $TypeForDropStatement [$SchemaName].[$ObjectName]"
                     $AddDefinitionListCmd.CommandText = $SQLToExecute
                     try {
-                        $AddDefinitionListCmd.ExecuteScalar();    
+                        $AddDefinitionListCmd.ExecuteNonQuery() | Out-Null
                         Save-DDLStatement -TargetDbCon $TargetDbCon -TargetObject "$SchemaName.$ObjectName" -DDLStatement $SQLToExecute
                     }
                     catch {
@@ -90,7 +90,7 @@ function Export-CreateScriptsForObjects {
                     Write-Host "Creating object [$SchemaName].[$ObjectName] of type $ObjectType on target."
                     $AddDefinitionListCmd.CommandText = $definitionForFile
                     try {
-                        $AddDefinitionListCmd.ExecuteScalar();    
+                        $AddDefinitionListCmd.ExecuteNonQuery() | Out-Null    
                         Save-DDLStatement -TargetDbCon $TargetDbCon -TargetObject "$SchemaName.$ObjectName" -DDLStatement $definitionForFile 
                     }
                     catch {
@@ -116,7 +116,7 @@ function Export-CreateScriptsForObjects {
                     $AddDefinitionListCmd.CommandText = $SQLToExecute
                     Write-Host "Creating schema $schemaName with authorisation $AuthorisationName on $($AddDefinitionListCmd.Connection.Database)"
                     try {
-                        $AddDefinitionListCmd.ExecuteScalar(); 
+                        $AddDefinitionListCmd.ExecuteNonQuery() | Out-Null 
                         Save-DDLStatement -TargetDbCon $TargetDbCon -TargetObject $SchemaName -DDLStatement $SQLToExecute 
                     }
                     catch {
@@ -128,9 +128,9 @@ function Export-CreateScriptsForObjects {
                 }
             }
             elseif ($ObjectType -in "Tables", "ExternalTables") {
-                $ExecuteCreateTable = New-Object System.Data.SqlClient.SqlCommand
-                $ExecuteCreateTable.CommandTimeout = 300
-                $ExecuteCreateTable.Connection = $SourceDBConnTabCreateStmnts
+                $TableScriptCmd = New-Object System.Data.SqlClient.SqlCommand
+                $TableScriptCmd.CommandTimeout = 300
+                $TableScriptCmd.Connection = $SourceDBConnTabCreateStmnts
                 $SchemaName = $ObjectListReader.GetString(0)
                 $ObjectName = $ObjectListReader.GetString(1)
                 $ObjectId = $ObjectListReader.GetInt32(2)
@@ -139,13 +139,14 @@ function Export-CreateScriptsForObjects {
                         "Tables" {$proc = "usp_ConstructCreateStatementForTable"; break}
                         "ExternalTables" {$proc = "usp_ConstructCreateStatementForExternalTable"; break}
                     }
-                    Write-Verbose "Recreating $proc on database $($ExecuteCreateTable.Connection.Database)"
-                    $ExecuteCreateTable.CommandText = "IF OBJECTPROPERTY(object_id('$proc'),  'IsProcedure') = 1 `n DROP PROCEDURE $proc"
-                    $ExecuteCreateTable.ExecuteNonQuery() 
+                    Write-Verbose "Recreating $proc on database $($TableScriptCmd.Connection.Database)"
+                    $TableScriptCmd.CommandText = "IF OBJECTPROPERTY(object_id('$proc'),  'IsProcedure') = 1 `n DROP PROCEDURE $proc"
+                    $TableScriptCmd.ExecuteNonQuery() | Out-Null
+                    
+                    $SQLToExecute = (Get-HelperSQL $proc)
 
-                    $SQLFileToExecute = "$(Join-Path (Get-Item $PSScriptRoot).Parent.FullName 'sql')\$proc.sql"
-                    $ExecuteCreateTable.CommandText = Get-Content $SQLFileToExecute -raw
-                    $ExecuteCreateTable.ExecuteNonQuery()
+                    $TableScriptCmd.CommandText = $SQLToExecute
+                    $TableScriptCmd.ExecuteNonQuery() | Out-Null
                     $ReCreateProc = 1                    
 
                 }
@@ -162,7 +163,7 @@ function Export-CreateScriptsForObjects {
                 "
                 $TableExists = $AddDefinitionListCmd.ExecuteScalar();
                 if ($TableExists -eq 0) {
-                    Write-Host "Generating CREATE TABLE Script for [$SchemaName].[$ObjectName]."  
+                    Write-Host "Getting table creation script for [$SchemaName].[$ObjectName] from $($TableScriptCmd.Connection.Database) on server $($TableScriptCmd.Connection.DataSource)."  
                     $sqlCommandText = "    
                         DECLARE @objectId AS BIGINT;
                         SET @objectId = $ObjectId;
@@ -182,13 +183,13 @@ function Export-CreateScriptsForObjects {
                         EXEC [$proc] @schemaName, @tableName, '', @sqlCmd OUTPUT;
                         SELECT @sqlCmd;"
 
-                    $ExecuteCreateTable.CommandText = $sqlCommandText 
-                    $ExecuteCreateTable.ExecuteScalar()
-
-                    Write-Host "Executing CREATE TABLE script on $($ExecuteCreateTable.Connection.Database).."  
-                    $CreateStatement = $ExecuteCreateTable.ExecuteScalar()
+                    $TableScriptCmd.CommandText = $sqlCommandText 
+                    
+                    $CreateStatement = $TableScriptCmd.ExecuteScalar()
 
                     try {
+                        Write-Host "Executing table creation script for [$SchemaName].[$ObjectName] on $($AddDefinitionListCmd.Connection.Database) on server $($AddDefinitionListCmd.Connection.DataSource)."  
+
                         $AddDefinitionListCmd.CommandTimeout = 300
                         $AddDefinitionListCmd.CommandText = $CreateStatement
 

@@ -58,21 +58,7 @@
     FormatsToProcess = @()
  
     # Functions to export from this module
-    FunctionsToExport = @(
-        'Compare-TableDelta',
-        'Get-ExistQuery',
-        'Get-ListQuery',
-        'Connect-SqlServer',
-        'Disconnect-SqlServer',
-        'Export-CreateScriptsForObjects',
-        'Export-ColumnChanges',
-        'New-AzureDatabaseMasterKey',
-        'Remove-CreateScriptForObjectsFiles',
-        'Remove-SystemDataObject',
-        'Set-DatabaseScopedCredential',
-        'Set-ExternalDataSource',
-        'Set-ExternalFileFormat'
-    )
+    FunctionsToExport = '*'
     # Cmdlets to export from this module
     CmdletsToExport = '*'
  

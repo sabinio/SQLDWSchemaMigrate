@@ -42,13 +42,11 @@ function Export-ColumnChanges {
     $TargetSqlServerName = $TargetColDbCon.DataSource
     $TargetDatabaseName = $TargetColDbCon.Database
 
-    $QueryForObjectList = Get-ListQuery -ObjectType 'Columns'
-
     Write-Host "Creating new table sourceColumns in target db to store column metadata"
     $AddColumnListCmd = New-Object System.Data.SqlClient.SqlCommand
     $AddColumnListCmd.Connection = $TargetColDbCon
     $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), schemaname varchar (8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int, max_length SMALLINT)"
-    $TargetColumnListReader = $AddColumnListCmd.ExecuteScalar();
+    $AddColumnListCmd.ExecuteNonQuery() | Out-Null
     $whatIs = Compare-TableDelta -sourceConn $SourceDbcon -targetConn $TargetColDbCon
     foreach ($What in $WhatIs) {
         foreach ($wKeys in $What.Keys) {
@@ -94,9 +92,6 @@ function Export-ColumnChanges {
                     $InsertStatement += "SELECT '$SqlDatabaseName', '$schemaName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId', '$maxLength' UNION ALL`n"
                 }
                 $InsertStatement = $InsertStatement.Substring(0, $InsertStatement.Length - 10)
-
-                Write-Host "`$TargetSqlServerName = $TargetSqlServerName"
-                Write-Host "`$TargetDatabaseName = $TargetDatabaseName"
                 
                 $PathToOutput = "$OutputDirectory\$sqlDatabaseName\InsertStatement_$schemaName$ColumnTable.sql"
                 New-item -path $PathToOutput -value $InsertStatement -type 'file' -force | Out-Null
@@ -111,8 +106,11 @@ function Export-ColumnChanges {
     }
     if ($whatIs.Count -gt 0) {
         Write-Host "Running script on server $TargetSqlServerName, database $TargetDatabaseName to add any missing columns, this can take some time..."
-        $SQLFileToExecute = "$(Join-Path (Get-Item $PSScriptRoot).Parent.FullName 'sql')\AddTableChanges.sql"
-        sqlcmd -i $SQLFileToExecute -S $TargetSqlServerName -d $TargetDatabaseName  -G -U $Username -P $Password -I  -y 0 -b -j  
+
+        $SQLFile = "$OutputDirectory\AddTableChanges.sql"
+        New-item -path $SQLFile -value $(Get-HelperSQL 'AddTableChanges') -type 'file' -force | Out-Null
+
+        sqlcmd -i $SQLFile -S $TargetSqlServerName -d $TargetDatabaseName  -G -U $Username -P $Password -I  -y 0 -b -j  
         if ($LASTEXITCODE -ne 0) {
             $msgToThrow = "Something went wrong whilst adding new columns. Consult the output of sqlcmd above for issue."
             Throw $msgToThrow 

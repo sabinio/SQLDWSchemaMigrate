@@ -11,7 +11,7 @@ The source database connection
 .Parameter TargetDbCon
 The target database connection
 .Example
-Set-ExternalDataSources -DbCon $conn -targetCon $TargetDbConn
+Set-ExternalDataSources -SourceDbcon $conn -TargetDbCon $TargetDbConn
 #>
     param(
         [System.Data.SqlClient.SqlConnection]$SourceDbcon, 

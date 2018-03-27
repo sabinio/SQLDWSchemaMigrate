@@ -84,7 +84,7 @@ Set-DatabaseScopedCredential -SourceDbcon $conn -TargetDbCon $TargetDbConn -alte
             $newsqlCreateScopedCredentialCmd.CommandText = $sqlCreateScopedCredential
             try {
                 Write-Host "Executing statement to create/alter Database Scoped Credential $credentialName"
-                $newsqlCreateScopedCredentialCmd.ExecuteNonQuery()| Out-Null
+                $newsqlCreateScopedCredentialCmd.ExecuteNonQuery() | Out-Null
             }
             catch {
                 $_.Exception
@@ -93,7 +93,7 @@ Set-DatabaseScopedCredential -SourceDbcon $conn -TargetDbCon $TargetDbConn -alte
             $newsqlCreateScopedCredentialCmd.CommandText = $verifyQuery
             $VerifySCopedCredential = $newsqlCreateScopedCredentialCmd.ExecuteScalar()
             if ($VerifySCopedCredential -ne 1) {
-                $msg = "Something has gone wrong in tryiing to create/update scoped credential"
+                $msg = "Something has gone wrong in trying to create/update scoped credential"
                 Throw $msg
             }
             else {

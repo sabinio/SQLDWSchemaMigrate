@@ -26,6 +26,5 @@ Please note that this is still in development stages!
 <file src="..\readme.md"/>
 <file src="Functions\*.ps1" target="Functions"/>
 <file src="image\icon.png"/>
-<file src="sql\*.sql" target="sql"/>
 </files>
 </package>
