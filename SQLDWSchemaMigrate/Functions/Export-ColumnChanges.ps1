@@ -7,47 +7,42 @@ function Export-ColumnChanges {
    If any columns are missing, they are added.
    If table exists on source but not on target, nothing happens!
    If table exists on target but not on source ... nothing happens!
-   .Parameter dbcon
+   .Parameter SourceDbcon
    Connection to source database. Used to get list of all tables on source database
-   .Parameter ColDbCon
-   Connection to source database. Whilst looping through tables, get column info on current table
-   .Parameter sqlDatabaseName
-   Used when inserting into SourceColumns table
-   .Parameter TargetColDbCon
+   .Parameter TargetDbCon
    used to create SourceColumns table on target database
-   .Parameter userName
-   used when connecting via sqlcmd
-   .Parameter Password
-   Corresponding password for username when connecting via sqlcmd
+   .Parameter TargetDBCredential
+   The credentials used during sqlcmd execution
    .Example
-   Export-ColumnChanges -DbCon $conn $columnConn $listColumnsQuery -tableQueryList $listTablesQuery -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $aaduName -password $aadpword -OutputDirectory $pathToSaveFiles
+   Export-ColumnChanges -SourceDbcon $SourceDbcon -TargetDbCon -$TargetDbCon -TargetDBCredential $TargetDBCredential 
 #>
     [CmdletBinding()]
     param(
         [System.Data.SqlClient.SqlConnection]$SourceDbcon, 
-        [System.Data.SqlClient.SqlConnection]$ColDbCon, 
-        $sqlServerName,
-        $sqlDatabaseName,
-        [System.Data.SqlClient.SqlConnection]$TargetColDbCon,
-        $userName,
-        $Password,
+        [System.Data.SqlClient.SqlConnection]$TargetDbCon,
+        [PSCredential] $TargetDBCredential,
         [String]$OutputDirectory ) 
 
     if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
         $OutputDirectory = $Env:temp
     }
-
     Write-Verbose "`$OutputDirectory is $OutputDirectory"
 
-    $TargetSqlServerName = $TargetColDbCon.DataSource
-    $TargetDatabaseName = $TargetColDbCon.Database
+    $sqlDatabaseName = $SourceDbcon.Database
+    
+    $TargetSqlServerName = $TargetDbCon.DataSource
+    $TargetDatabaseName = $TargetDbCon.Database
+    $userName  = $TargetDBCredential.UserName
+    $Password  = $TargetDBCredential.GetNetworkCredential().Password
 
-    Write-Host "Creating new table sourceColumns in target db to store column metadata"
+    Write-Host "Creating new table sourceColumns in $TargetSqlServerName to store column metadata"
     $AddColumnListCmd = New-Object System.Data.SqlClient.SqlCommand
-    $AddColumnListCmd.Connection = $TargetColDbCon
+    $AddColumnListCmd.Connection = $TargetDbCon
     $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), schemaname varchar (8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int, max_length SMALLINT)"
     $AddColumnListCmd.ExecuteNonQuery() | Out-Null
-    $whatIs = Compare-TableDelta -sourceConn $SourceDbcon -targetConn $TargetColDbCon
+
+
+    $whatIs = Compare-TableDelta -sourceConn $SourceDbcon -targetConn $TargetDbCon
     foreach ($What in $WhatIs) {
         foreach ($wKeys in $What.Keys) {
             $schemaName = $wKeys
