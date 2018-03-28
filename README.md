@@ -22,11 +22,11 @@ The more objects you have to deploy, and the more objects that exist in your sou
 
 ### What Objects Are Migrated?
 Currently there are 10 Objects supported; 
-1. tables
-2. views
-3. schemas
-4. stored procedures
-5. scalar functions
+1. Tables
+2. Views
+3. Schemas
+4. Stored procedures
+5. Scalar functions
 6. External Data Sources
 7. External File Formats
 8. External Tables
@@ -134,18 +134,9 @@ The -G option defines that sqlcmd uses Azure Active Directory for authentication
 ### Permissions
  Because we are dropping and creating objects, as well as reading sys tables, db_owner on the table should be the minimum.
 
-### Where Are Created Files Stored?
-Currently no files are being created. This feature may change! 
+### How do I know what changes were migrated?
+Any changes made to the target database are logged to a table called `DDLStatements`.  This table contains every DDL statement executed against the target database.  The function `Export-SchemaDDLStatements` can be used to save the DDL statements to a single file, or one file per object modified.
 
-~~On both ```Remove-CreateScriptForObjectsFiles``` and ```Export-CreateScriptsForObjects``` there is a parameter called ```$outputDir```. Set this to the location you want the "CREATE" statements saved to. If this parameter is not used then ```$env:temp``` is used. EG -~~
-```powershell
-~~  if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
-            $OutputDirectory = $Env:temp
-	}~~
-```
-
-~~### Are There Any Files That Are Not Created?
-The "ALTER" statements for applying COLUMN changes are not generated. Instead a print statement is generated for logging purposes.~~
 
 ### How To
 The below script will extract all the differences from the source database and apply them to the target database. This assumes you have both databases created, the relevant permissions setup,and that the source database has some objects to migrate over.  
@@ -181,11 +172,11 @@ $targetDbcon = Connect-SqlServer -sqlServerName $TargetServerName -sqlDatabaseNa
 # remove #
 #        #
 ##########
-# Remove-CreateScriptForObjectsFiles $sourceDbcon $listSchemasQuery "Schemas" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -OutputDirectory $pathToSaveFiles
-# Remove-CreateScriptForObjectsFiles $sourceDbcon $listTablesQuery "Tables" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -OutputDirectory $pathToSaveFiles
-# Remove-CreateScriptForObjectsFiles $sourceDbcon $listFunctionsQuery "ScalarFunctions" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -OutputDirectory $pathToSaveFiles
-# Remove-CreateScriptForObjectsFiles $sourceDbcon $listViewsQuery "Views" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -OutputDirectory $pathToSaveFiles
-# Remove-CreateScriptForObjectsFiles $sourceDbcon $listStoredProceduresQuery "StoredProcedures" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -OutputDirectory $pathToSaveFiles                                                                                                                                        
+# Remove-CreateScriptForObjectsFiles $sourceDbcon $listSchemasQuery "Schemas" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
+# Remove-CreateScriptForObjectsFiles $sourceDbcon $listTablesQuery "Tables" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
+# Remove-CreateScriptForObjectsFiles $sourceDbcon $listFunctionsQuery "ScalarFunctions" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
+# Remove-CreateScriptForObjectsFiles $sourceDbcon $listViewsQuery "Views" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
+# Remove-CreateScriptForObjectsFiles $sourceDbcon $listStoredProceduresQuery "StoredProcedures" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName                                                                                                       
 # ##########
 # #        #
 # # export #
@@ -200,18 +191,22 @@ New-DDLStatementsTable -TargetDbCon $targetDbcon
 Set-ExternalDataSource -SourceDbcon $sourceDbcon -TargetDbCon $targetDbcon
 Set-ExternalFileFormat -SourceDbcon $sourceDbcon -TargetDbCon $targetDbcon
 
-Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "Schemas"        -TargetDbCon $targetDbcon  
-
-Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "Tables"         -TargetDbCon $targetDbcon  
-Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "ExternalTables"  -TargetDbCon $targetDbcon 
-
+Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "Schemas"              -TargetDbCon $targetDbcon  
+Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "Tables"               -TargetDbCon $targetDbcon  
+Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "ExternalTables"       -TargetDbCon $targetDbcon 
 Export-ColumnChanges           -SourceDbcon $sourceDbcon  -TargetDbCon $targetDbcon -TargetDBCredential $TargetDBCredential
-
 Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "VIEW"                 -TargetDbCon $targetDbcon 
-Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "SQL_SCALAR_FUNCTION" -TargetDbCon $targetDbcon  
+Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "SQL_SCALAR_FUNCTION"  -TargetDbCon $targetDbcon  
 Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "SQL_STORED_PROCEDURE" -TargetDbCon $targetDbcon 
 
-Export-SchemaDDLStatements -Dbcon $targetDbcon -OutputDirectory 'c:\temp' -SplitByDatabaseObject  -Verbose
+#Show DDL statements on console
+Read-SchemaDDLStatements -Dbcon $targetDbcon | Format-Table -Wrap
+
+# Save DDL statements to a single file
+Export-SchemaDDLStatements -Dbcon $targetDbcon -OutputDirectory 'c:\temp' -OutputFileName 'DDLStatements.sql'
+
+#.. or, save DDL statements to multiple files (1 file per db object modified - file name is "Schema.Objectname.sql")
+Export-SchemaDDLStatements -Dbcon $targetDbcon -OutputDirectory 'c:\temp' -SplitByDatabaseObject  
 
 Disconnect-SqlServer -sqlConnection $sourceDbcon
 Disconnect-SqlServer -sqlConnection $targetDbcon

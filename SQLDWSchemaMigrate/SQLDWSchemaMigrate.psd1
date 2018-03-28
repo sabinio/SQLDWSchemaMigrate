@@ -58,7 +58,18 @@
     FormatsToProcess = @()
  
     # Functions to export from this module
-    FunctionsToExport = '*'
+    FunctionsToExport = @(
+        'Connect-SqlServer.ps1',
+        'Disconnect-SqlServer.ps1',
+        'Export-ColumnChanges.ps1',
+        'Export-CreateScriptsForObjects.ps1',
+        'Export-SchemaDDLStatements.ps1',
+        'Read-SchemaDDLStatements.ps1',
+        'Remove-CreateScriptForObjectsFiles.ps1',
+        'Set-DatabaseScopedCredential.ps1',
+        'Set-ExternalDataSource.ps1',
+        'Set-ExternalFileFormat.ps1')
+
     # Cmdlets to export from this module
     CmdletsToExport = '*'
  

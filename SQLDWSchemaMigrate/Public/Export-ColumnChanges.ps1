@@ -20,13 +20,10 @@ function Export-ColumnChanges {
     param(
         [System.Data.SqlClient.SqlConnection]$SourceDbcon, 
         [System.Data.SqlClient.SqlConnection]$TargetDbCon,
-        [PSCredential] $TargetDBCredential,
-        [String]$OutputDirectory ) 
+        [PSCredential] $TargetDBCredential) 
 
-    if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
-        $OutputDirectory = $Env:temp
-    }
-    Write-Verbose "`$OutputDirectory is $OutputDirectory"
+    $WorkingDirectory = $Env:temp
+    Write-Verbose "`$WorkingDirectory is $WorkingDirectory"
 
     $sqlDatabaseName = $SourceDbcon.Database
     
@@ -88,7 +85,7 @@ function Export-ColumnChanges {
                 }
                 $InsertStatement = $InsertStatement.Substring(0, $InsertStatement.Length - 10)
                 
-                $PathToOutput = "$OutputDirectory\$sqlDatabaseName\InsertStatement_$schemaName$ColumnTable.sql"
+                $PathToOutput = "$WorkingDirectory\$sqlDatabaseName\InsertStatement_$schemaName$ColumnTable.sql"
                 New-item -path $PathToOutput -value $InsertStatement -type 'file' -force | Out-Null
                 sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $TargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
                 if ($LASTEXITCODE -ne 0) {
@@ -102,7 +99,7 @@ function Export-ColumnChanges {
     if ($whatIs.Count -gt 0) {
         Write-Host "Running script on server $TargetSqlServerName, database $TargetDatabaseName to add any missing columns, this can take some time..."
 
-        $SQLFile = "$OutputDirectory\AddTableChanges.sql"
+        $SQLFile = "$WorkingDirectory\AddTableChanges.sql"
         New-item -path $SQLFile -value $(Get-HelperSQL 'AddTableChanges') -type 'file' -force | Out-Null
 
         sqlcmd -i $SQLFile -S $TargetSqlServerName -d $TargetDatabaseName  -G -U $Username -P $Password -I  -y 0 -b -j  
