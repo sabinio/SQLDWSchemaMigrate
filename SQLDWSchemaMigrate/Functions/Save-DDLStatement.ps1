@@ -22,7 +22,7 @@ Save-DDLStatement -TargetDbCon $MyDB -TargetObject "Blah" -DDLStatement "ALTER T
 
     $cmd = New-Object System.Data.SqlClient.SqlCommand
     $cmd.Connection = $TargetDbCon
-    $cmd.CommandText = "INSERT INTO DDLStatements (TargetObject, DDLStmt, CreateDate) VALUES (@TargetObject, @DDLStatement, '$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))')"
+    $cmd.CommandText = "INSERT INTO DDLStatements (TargetObject, DDLStmt, CreateDate) VALUES (@TargetObject, @DDLStatement, '$((Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss'))')"
     $cmd.Parameters.AddWithValue("@TargetObject",$TargetObject) | Out-Null    
     $cmd.Parameters.AddWithValue("@DDLStatement",$DDLStatement) | Out-Null    
 

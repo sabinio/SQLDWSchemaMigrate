@@ -263,7 +263,7 @@ CREATE PROC [usp_ConstructCreateStatementForExternalTable] @schemaName [VARCHAR]
                 -- Current table in prod db and collecting all column names it should have based on source columns
                 SELECT 	@currentTable = object_name,
                         @currentSchema = schema_name,
-                        @objectSchemaAndName = object_name + '.' + schema_name
+                        @objectSchemaAndName = schema_name + '.' + object_name
                 FROM #Temp1
                 WHERE number = @counter
             
