@@ -211,6 +211,8 @@ Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "VIEW"    
 Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "SQL_SCALAR_FUNCTION" -TargetDbCon $targetDbcon  
 Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "SQL_STORED_PROCEDURE" -TargetDbCon $targetDbcon 
 
+Export-SchemaDDLStatements -Dbcon $targetDbcon -OutputDirectory 'c:\temp' -SplitByDatabaseObject  -Verbose
+
 Disconnect-SqlServer -sqlConnection $sourceDbcon
 Disconnect-SqlServer -sqlConnection $targetDbcon
 
