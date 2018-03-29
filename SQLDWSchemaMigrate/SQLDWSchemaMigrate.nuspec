@@ -24,7 +24,8 @@ Please note that this is still in development stages!
 <file src="SQLDWSchemaMigrate.psd1"/>
 <file src="SQLDWSchemaMigrate.psm1"/>
 <file src="..\readme.md"/>
-<file src="Functions\*\*.ps1" target="Functions"/>
+<file src="Public\*.ps1" target="Public"/>
+<file src="Private\*.ps1" target="Private"/>
 <file src="image\icon.png"/>
 </files>
 </package>
