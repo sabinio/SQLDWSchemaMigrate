@@ -24,18 +24,7 @@ Please note that this is still in development stages!
 <file src="SQLDWSchemaMigrate.psd1"/>
 <file src="SQLDWSchemaMigrate.psm1"/>
 <file src="..\readme.md"/>
-<file src="Functions\CompareFunctions.ps1" target="Functions"/>
-<file src="Functions\ConnectSqlServer.ps1" target="Functions"/>
-<file src="Functions\DisconnectSqlServer.ps1" target="Functions"/>
-<file src="Functions\GetListQuery.ps1" target="Functions"/>
-<file src="Functions\NewAzureDatabaseMasterKey.ps1" target="Functions"/>
-<file src="Functions\RemoveSystemDataObject.ps1" target="Functions"/>
-<file src="Functions\SetDatabaseScopedCredential.ps1" target="Functions"/>
-<file src="Functions\SetExternalDataSource.ps1" target="Functions"/>
-<file src="Functions\SetExternalFileFormat.ps1" target="Functions"/>
+<file src="Functions\*.ps1" target="Functions"/>
 <file src="image\icon.png"/>
-<file src="sql\AddTableChanges.sql" target="sql"/>
-<file src="sql\usp_ConstructCreateStatementForTable.sql" target="sql"/>
-<file src="sql\usp_ConstructCreateStatementForExternalTable.sql" target="sql"/>
 </files>
 </package>

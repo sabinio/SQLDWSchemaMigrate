@@ -6,21 +6,21 @@ Creates External File Formats
 .Description
 Get each ofhte external file formats from the source database.
 If external file format does not exist on target server, it is created.
-.Parameter dbcon
+.Parameter SourceDbcon
 The source database connection
-.Parameter targetcon
+.Parameter TargetDbCon
 The target database connection
 .Example
-Set-ExternalFileFormat -DbCon $conn -targetCon $targetConn
+Set-ExternalFileFormat -SourceDbcon $conn -TargetDbCon $TargetDbConn
 #>
     param(
-        [System.Data.SqlClient.SqlConnection]$DbCon, 
-        [System.Data.SqlClient.SqlConnection]$targetCon
+        [System.Data.SqlClient.SqlConnection]$SourceDbcon, 
+        [System.Data.SqlClient.SqlConnection]$TargetDbCon
     )
 
     $sqlCommandText = "select eff.name, eff.format_type, eff.data_compression, eff.serde_method, eff.field_terminator, eff.date_format, eff.string_delimiter, eff.use_type_default, eff.encoding from sys.external_file_formats eff"
     $GetfieldformatListCmd = New-Object System.Data.SqlClient.SqlCommand
-    $GetfieldformatListCmd.Connection = $DbCon
+    $GetfieldformatListCmd.Connection = $SourceDbcon
     $GetfieldformatListCmd.CommandText = $sqlCommandText
     $fieldformatListReader = $GetfieldformatListCmd.ExecuteReader();
     if ($fieldformatListReader.HasRows) {
@@ -100,7 +100,7 @@ Set-ExternalFileFormat -DbCon $conn -targetCon $targetConn
             }
             $sqlCreateExternalFile = $sqlCreateExternalFile + " );"
             $TargetExternalFileCmd = New-Object System.Data.SqlClient.SqlCommand
-            $TargetExternalFileCmd.Connection = $targetCon
+            $TargetExternalFileCmd.Connection = $TargetDbCon
             $TargetExternalFileCmd.CommandText = $sqlCreateExternalFile
             try {
                 $TargetExternalFileCmd.ExecuteNonQuery() | Out-Null    

@@ -1,2 +1,4 @@
 
 SQLDWSchemaMigrate/run\.ps1
+SQLDWSchemaMigrate/*.nupkg
+

@@ -19,8 +19,8 @@ Disconnect-SqlServer -sqlConnection $mySqlConnection
         )
     if ($sqlConnection.State -ne "Closed") {
         try {
-            $sqlConnection.Dispose()
-            Write-Host "Disposed of connection"
+            Write-Host "Closing connection to database $($sqlConnection.Database) on server $($sqlConnection.Datasource).. "
+            $sqlConnection.Dispose()            
             return
         }
         catch {

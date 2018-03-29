@@ -30,14 +30,12 @@ Function Connect-SqlServer {
     )
     $userDbCon = New-Object System.Data.SqlClient.SqlConnection
     $userDbCon.ConnectionString = "Server = $SqlServerName; Database = $SqlDatabaseName; Authentication=Active Directory Password; UID = $Username; PWD = $Password;"
-    Write-Host "Opening connection to $SqlServerName"
     try {
+        Write-Host "Opening connection to database $SqlDatabaseName on server $SqlServerName.."
         $userDbCon.Open();
-        Write-Host "Connection ready"
         Return $userDbCon
     }
     catch {
         Throw $_.Exception
     }
-
 }

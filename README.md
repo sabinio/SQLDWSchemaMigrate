@@ -1,8 +1,10 @@
+beta package - [<img src="https://sabinio.visualstudio.com/_apis/public/build/definitions/573f7b7f-2303-49f0-9b89-6e3117380331/131/badge"/>](https://sabinio.visualstudio.com/Sabin.IO/_apps/hub/ms.vss-ciworkflow.build-ci-hub?_a=edit-build-definition&id=131)
+
 # Migrate Azure SQL Datawarehouse Schemas
 This repo will store the PowerShell Module that will be used to Migrate any changes to the schema from a source Azure Data Warehouse to a target Azure Data Warehouse. This does not migrate data!
 
 ## Deploy or Migrate?
-Because SSDT does not support Azure DataWarehouse, the current project in DataServices generates the deployment scripts. However there is not way to migrate these changes from one data warehouse to another. What this module actually does is connect to a data warehouse that contains the source schema and migrates the changes over to the target data warehouse.
+Because SSDT does not support Azure DataWarehouse, the current project in DataServices generates the deployment scripts. However there is no way to migrate these changes from one data warehouse to another. What this module actually does is connect to a data warehouse that contains the source schema and migrates the changes over to the target data warehouse.
 
 Note that data is not migrated over! 
 
@@ -13,7 +15,7 @@ The following MSI's need to be installed on the box -
 * [Microsoft ODBC Driver 13.1 for SQL Server](https://www.microsoft.com/en-us/download/details.aspx?id=53591)
 * [Microsoft Command Line Utilities 13.1 for SQL Server](https://www.microsoft.com/en-us/download/details.aspx?id=53339) 
 
-SSMS and SQL Server versions may come packaged with their own versions of these components, which may not work! So either uninstall/install these versions, or run on a seperate box.  
+SSMS and SQL Server versions may come packaged with their own versions of these components, which may not work! So either uninstall/install these versions, or run on a separate box.  
 
 ## How Long Does a Migration Take?
 If you're deploying an entire database, then it might take a while - in my testing a database with 200+ tables, 50+ views and over 200 procedures took about 10 minutes. After that, adding a single object takes about 30 seconds.
@@ -22,11 +24,11 @@ The more objects you have to deploy, and the more objects that exist in your sou
 
 ### What Objects Are Migrated?
 Currently there are 10 Objects supported; 
-1. tables
-2. views
-3. schemas
-4. stored procedures
-5. scalar functions
+1. Tables
+2. Views
+3. Schemas
+4. Stored procedures
+5. Scalar functions
 6. External Data Sources
 7. External File Formats
 8. External Tables
@@ -39,8 +41,8 @@ In addition, columns added to tables that already exist on the server are migrat
 Some objects can be dropped and re-created; however where data loss is a possibility, this is obviously a very bad idea. Despite this, the process for all objects follows a similar pattern - 
 
 * Connect to source database.
-* Run a query that lists a given object (ie function, view etc.)
-* Foreach object, connect to source database and generate a script to drop/create the object.
+* Run a query that lists objects of a certain type (ie function, view etc.)
+* For each object, connect to source database and generate a script to drop/create the object.
 * If it needs to be run (see details for each object below) connect to target database and run drop/create script.
 
 Below details individually how objects are migrated. 
@@ -63,7 +65,7 @@ Because it is not possible to read the SECRET from the source server, a PowerShe
 # However unlike the Switch above that omits an error being thrown, this will continue to alter those credentials that have secrets set. 
 ```
 #### Database Master Keys
-As Crednetials require database master keys to be created, the function ```New-AzureDatabaseMasterkey``` will create such a key. This needs to be explicitly executed with a password.
+As Credentials require database master keys to be created, the function ```New-AzureDatabaseMasterkey``` will create such a key. This needs to be explicitly executed with a password.
 
 #### Functions, Views and Procedures
 Details of objects are listed from source database. The source definition of the object is compared to the defintion on the target database. If the definitions do not match the object is dropped on the target and re-created. No data loss can occur.
@@ -115,7 +117,7 @@ As of January 2018, according to [Microsoft Docs](https://docs.microsoft.com/en-
 Currently the behaviour is that it is not dropped on the target database. THere's plans to add a "drop in target not in source" type functionality at some point. 
 
 ##### What Happens to Table Changes on the Target Database When I Run Apply Changes from Source?
-Basically, you're on your own. The idea of this module is to automate aligning databases from source to target. If you go and make changes to the target database not using this PowerSHell Module then I don't really know how the changes will apply and there's a limit to how much can be anticipated.
+Basically, you're on your own. The idea of this module is to automate aligning databases from source to target. If you go and make changes to the target database not using this PowerShell Module then I don't really know how the changes will apply and there's a limit to how much can be anticipated.
 
 #### Are There Any Other Objects Created on The Databases By This Module
 Two stored procedures called ```usp_ConstructCreateStatementForTable``` and ```usp_ConstructCreateStatementForExternalTable``` are created, which is used to generated the ```CREATE <EXTERNAL> TABLE``` statement. This is created on the source database. The columns are added when the module runs ```AddTableChanges.sql```
@@ -134,18 +136,9 @@ The -G option defines that sqlcmd uses Azure Active Directory for authentication
 ### Permissions
  Because we are dropping and creating objects, as well as reading sys tables, db_owner on the table should be the minimum.
 
-### Where Are Created Files Stored?
-Currently no files are being created. This feature may change! 
+### How do I know what changes were migrated?
+Any changes made to the target database are logged to a table called `DDLStatements`.  This table contains every DDL statement executed against the target database.  The function `Export-SchemaDDLStatements` can be used to save the DDL statements to a single file, or one file per object modified.
 
-~~On both ```Remove-CreateScriptForObjectsFiles``` and ```Export-CreateScriptsForObjects``` there is a parameter called ```$outputDir```. Set this to the location you want the "CREATE" statements saved to. If this parameter is not used then ```$PSScriptRoot``` is used. EG -~~
-```powershell
-~~  if ($PSBoundParameters.ContainsKey('OutputDirectory') -eq $false) {
-            $OutputDirectory = $PSScriptRoot
-	}~~
-```
-
-~~### Are There Any Files That Are Not Created?
-The "ALTER" statements for applying COLUMN changes are not generated. Instead a print statement is generated for logging purposes.~~
 
 ### How To
 The below script will extract all the differences from the source database and apply them to the target database. This assumes you have both databases created, the relevant permissions setup,and that the source database has some objects to migrate over.  
@@ -153,35 +146,39 @@ The below script will extract all the differences from the source database and a
 The example also assumes that database are on seperate servers, but this does not have to be the case in real life.
 
 ```powershell
+$SourceServerName = 'sourcedbserver.database.windows.net'
+$TargetServerName = 'targetdbserver.database.windows.net'
 
-$ServerName = "myLittleServer.database.windows.net"
-$DatabaseName = "AdwSourceDatabase"
-$targetDatabaseName = "AdwTargetDatabase"
-$uName = "me"
-$pword = "noPasswords4U!"
+$DatabaseName = 'SourceDB'
+$targetDatabaseName = 'TargetDB'
 
-$conn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $aaduName -password $aadpword
-$targetConn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $targetDatabaseName -userName $aaduName -password $aadpword
-$columnConn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $aaduName -password $aadpword
+# Get Credential for Source DB?
+if ($SourceDBCredential) {Write-Host "Using saved credential for SourceDB.."} else {$SourceDBCredential = Get-Credential}
+$SourceDBUsername = $SourceDBCredential.UserName
+$SourceDBPassword = $SourceDBCredential.GetNetworkCredential().Password
 
-$listSchemasQuery = Get-ListQuery "Schemas" 
-$listStoredProceduresQuery = Get-ListQuery "StoredProcedures"
-$listTablesQuery = Get-ListQuery "Tables"
-$listFunctionsQuery = Get-ListQuery "ScalarFunctions"
-$listViewsQuery = Get-ListQuery "Views"
-$listColumnsQuery = Get-ListQuery "Columns"
-$listExternalTablesQuery = Get-ListQuery "ExternalTables"
+# Get Credential for Target DB?
+if ($TargetDBCredential) {Write-Host "Using saved credential for TargetDB.."} else {$TargetDBCredential = Get-Credential}
+$TargetDBUsername = $TargetDBCredential.UserName
+$TargetDBPassword = $TargetDBCredential.GetNetworkCredential().Password
+
+#Source database connection..
+$sourceDbcon = Connect-SqlServer -sqlServerName $SourceServerName -sqlDatabaseName $DatabaseName -userName $SourceDBUsername -password $SourceDBPassword
+
+#Target database connection..
+$targetDbcon = Connect-SqlServer -sqlServerName $TargetServerName -sqlDatabaseName $targetDatabaseName -userName $uName -password $pword
+
 
 ##########
 #        #
 # remove #
 #        #
 ##########
-# Remove-CreateScriptForObjectsFiles $conn $listSchemasQuery "Schemas" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -OutputDirectory $pathToSaveFiles
-# Remove-CreateScriptForObjectsFiles $conn $listTablesQuery "Tables" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -OutputDirectory $pathToSaveFiles
-# Remove-CreateScriptForObjectsFiles $conn $listFunctionsQuery "ScalarFunctions" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -OutputDirectory $pathToSaveFiles
-# Remove-CreateScriptForObjectsFiles $conn $listViewsQuery "Views" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -OutputDirectory $pathToSaveFiles
-# Remove-CreateScriptForObjectsFiles $conn $listStoredProceduresQuery "StoredProcedures" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -OutputDirectory $pathToSaveFiles                                                                                                                                        
+# Remove-CreateScriptForObjectsFiles $sourceDbcon $listSchemasQuery "Schemas" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
+# Remove-CreateScriptForObjectsFiles $sourceDbcon $listTablesQuery "Tables" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
+# Remove-CreateScriptForObjectsFiles $sourceDbcon $listFunctionsQuery "ScalarFunctions" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
+# Remove-CreateScriptForObjectsFiles $sourceDbcon $listViewsQuery "Views" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
+# Remove-CreateScriptForObjectsFiles $sourceDbcon $listStoredProceduresQuery "StoredProcedures" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName                                                                                                       
 # ##########
 # #        #
 # # export #
@@ -190,24 +187,34 @@ $listExternalTablesQuery = Get-ListQuery "ExternalTables"
 
 $date1=get-date
 
-Set-DatabaseScopedCredential -dbcon $conn -targetCon $targetConn
-Set-ExternalDataSource -DbCon $conn -targetCon $targetConn
-Set-ExternalFileFormat -DbCon $conn -targetCon $targetConn
-Export-CreateScriptsForObjects -DbCon $conn -QueryForObjectList $listSchemasQuery -ObjectType "Schemas" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
-Export-CreateScriptsForObjects -DbCon $conn -TableCon $columnConn -QueryForObjectList $listTablesQuery -ObjectType "Tables" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
-Export-CreateScriptsForObjects -DbCon $conn -TableCon $columnConn -QueryForObjectList $listExternalTablesQuery -ObjectType "ExternalTables" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
-Export-ColumnChanges -DbCon $conn $columnConn $listColumnsQuery -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $uName -password $pword -TargetColDbCon $targetConn -TargetSqlServerName $ServerName -sqlTargetDatabaseName $targetDatabaseName -OutputDirectory $pathToSaveFiles -verbose
-Export-CreateScriptsForObjects -DbCon $conn -QueryForObjectList $listViewsQuery -ObjectType "VIEW" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
-Export-CreateScriptsForObjects -DbCon $conn -QueryForObjectList $listFunctionsQuery -ObjectType "SQL_SCALAR_FUNCTION" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
-Export-CreateScriptsForObjects -DbCon $conn -QueryForObjectList $listStoredProceduresQuery -ObjectType "SQL_STORED_PROCEDURE" -TargetDbCon $targetConn -OutputDirectory $pathToSaveFiles -verbose
+New-DDLStatementsTable -TargetDbCon $targetDbcon 
 
-Disconnect-SqlServer -sqlConnection $conn
-Disconnect-SqlServer -sqlConnection $targetConn
+#Set-DatabaseScopedCredential -SourceDbcon $sourceDbcon -TargetDbCon $targetDbcon
+Set-ExternalDataSource -SourceDbcon $sourceDbcon -TargetDbCon $targetDbcon
+Set-ExternalFileFormat -SourceDbcon $sourceDbcon -TargetDbCon $targetDbcon
 
-Disconnect-SqlServer -sqlConnection $columnConn
-Disconnect-SqlServer -sqlConnection $targetColumnConn
+Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "Schemas"              -TargetDbCon $targetDbcon  
+Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "Tables"               -TargetDbCon $targetDbcon  
+Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "ExternalTables"       -TargetDbCon $targetDbcon 
+Export-ColumnChanges           -SourceDbcon $sourceDbcon  -TargetDbCon $targetDbcon -TargetDBCredential $TargetDBCredential
+Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "VIEW"                 -TargetDbCon $targetDbcon 
+Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "SQL_SCALAR_FUNCTION"  -TargetDbCon $targetDbcon  
+Export-CreateScriptsForObjects -SourceDbcon $sourceDbcon  -ObjectType "SQL_STORED_PROCEDURE" -TargetDbCon $targetDbcon 
 
-$date2=get-date
-$taskTime = "Task took(HH:MM:SS:MS) "+(New-TimeSpan -Start $date1 -End $date2)
-write-Host $taskTime -ForegroundColor DarkGreen -BackgroundColor DarkGray
+#Show DDL statements on console
+Read-SchemaDDLStatements -Dbcon $targetDbcon | Format-Table -Wrap
+
+# Save DDL statements to a single file
+Export-SchemaDDLStatements -Dbcon $targetDbcon -OutputDirectory 'c:\temp' -OutputFileName 'DDLStatements.sql'
+
+#.. or, save DDL statements to multiple files (1 file per db object modified - file name is "Schema.Objectname.sql")
+Export-SchemaDDLStatements -Dbcon $targetDbcon -OutputDirectory 'c:\temp' -SplitByDatabaseObject  
+
+Disconnect-SqlServer -sqlConnection $sourceDbcon
+Disconnect-SqlServer -sqlConnection $targetDbcon
+
+
+
+$taskTime = "Task took(HH:MM:SS:MS) "+(New-TimeSpan -Start $date1 -End (get-date))
+write-Host $taskTime -ForegroundColor Yellow -BackgroundColor DarkGray
 ```

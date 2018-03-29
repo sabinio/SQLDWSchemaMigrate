@@ -59,20 +59,17 @@
  
     # Functions to export from this module
     FunctionsToExport = @(
-        'Compare-TableDelta',
-        'Get-ExistQuery',
-        'Get-ListQuery',
-        'Connect-SqlServer',
-        'Disconnect-SqlServer',
-        'Export-CreateScriptsForObjects',
-        'Export-ColumnChanges',
-        'New-AzureDatabaseMasterKey',
-        'Remove-CreateScriptForObjectsFiles',
-        'Remove-SystemDataObject',
-        'Set-DatabaseScopedCredential',
-        'Set-ExternalDataSource',
-        'Set-ExternalFileFormat'
-    )
+        'Connect-SqlServer.ps1',
+        'Disconnect-SqlServer.ps1',
+        'Export-ColumnChanges.ps1',
+        'Export-CreateScriptsForObjects.ps1',
+        'Export-SchemaDDLStatements.ps1',
+        'Read-SchemaDDLStatements.ps1',
+        'Remove-CreateScriptForObjectsFiles.ps1',
+        'Set-DatabaseScopedCredential.ps1',
+        'Set-ExternalDataSource.ps1',
+        'Set-ExternalFileFormat.ps1')
+
     # Cmdlets to export from this module
     CmdletsToExport = '*'
  

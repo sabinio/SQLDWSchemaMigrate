@@ -28,7 +28,8 @@ Function Compare-TableDelta {
 			AND o.name NOT IN (
 				'sourceColumns'
 				,'sourceColumnsNew'
-				,'SourceDefinitions'
+                ,'SourceDefinitions'
+                ,'DDLStatements'
 				)
 				AND t.is_external = 0 
                 GROUP by o.name,s.name
@@ -61,39 +62,4 @@ Function Compare-TableDelta {
     Remove-SystemDataObject -SystemDataObject $targetResultSet
     Remove-SystemDataObject -SystemDataObject $DataAdapter
     }
-}
-Function Compare-Rows {
-    <#
-    .Synopsis
-    Compares the sums of columns in a table that exists on both source and target databases and returns a hashtable of arrays of schemanName/TableName.
-    .Description
-    Loopsthrough the source dataset of tables and find the corresponding entry in the target dataset and compares number of columns.
-    If this is differnet then array of schema/table name are added to a hashtable which is returned at the end. 
-    This Function itself is called by Compare-TableDeltas
-    .Parameter souceDataset
-    All tables and number of columns from source database.
-    .Parameter TargetDataset
-    All tables and number of columns from Target database.
-     .Example
-     $same = Compare-Rows $sourceDataSet $targetDataSet;
-    #>
-    [CmdletBinding()]
-    param(
-        $sourceDataSet, 
-        $targetDataSet)
-    
-    $sourceRowIndex = 0;
-    foreach ($sourceRow in $sourceDataSet.Rows) {
-        $targetRow = $targetDataSet.Rows | Where-Object {($_.ItemArray[0] -eq $sourceRow.ItemArray[0] -and $_.ItemArray[1] -eq $sourceRow.ItemArray[1])}
-        if ($null -ne $targetRow) {
-            if ($sourceRow.ItemArray[2] -ne $targetRow.ItemArray[2]) {
-                $output + (@{$sourceRow.ItemArray[0] = $($sourceRow.ItemArray[1])});
-            } 
-        }
-        else {
-            Write-Host "Unable to find table $($sourceRow.ItemArray[0]).$($sourceRow.ItemArray[1]) on target database! Consider migrating tables over using 'Export-CreateScriptsForObjects -objectType Tables' and trying again."
-        }
-        $sourceRowIndex += 1;
-    }
-    return $output;
 }
