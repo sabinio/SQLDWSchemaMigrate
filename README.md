@@ -4,7 +4,7 @@ beta package - [<img src="https://sabinio.visualstudio.com/_apis/public/build/de
 This repo will store the PowerShell Module that will be used to Migrate any changes to the schema from a source Azure Data Warehouse to a target Azure Data Warehouse. This does not migrate data!
 
 ## Deploy or Migrate?
-Because SSDT does not support Azure DataWarehouse, the current project in DataServices generates the deployment scripts. However there is no way to migrate these changes from one data warehouse to another. What this module actually does is connect to a data warehouse that contains the source schema and migrates the changes over to the target data warehouse.
+Because SSDT does not support Azure DataWarehouse, there is no clear way to deploy changes to Azure SQL DW. What this module actually does is connect to a data warehouse that contains the source schema and migrates the changes over to the target data warehouse.
 
 Note that data is not migrated over! 
 
