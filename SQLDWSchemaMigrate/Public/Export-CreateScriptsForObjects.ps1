@@ -19,7 +19,6 @@ function Export-CreateScriptsForObjects {
     [CmdletBinding()]
     param(
         [System.Data.SqlClient.SqlConnection]$SourceDbcon, 
-        [System.Data.SqlClient.SqlConnection]$SourceDBConnTabCreateStmnts, 
         [string]$ObjectType,
         [System.Data.SqlClient.SqlConnection]$TargetDbCon,
         [String]$OutputDirectory ) 
@@ -35,14 +34,17 @@ function Export-CreateScriptsForObjects {
     $ErrorActionPreference = 'stop'
     $QueryForObjectList = Get-ListQuery -ObjectType $ObjectType
 
+    Write-Verbose "`$QueryForObjectList = $QueryForObjectList"
+
     switch ($ObjectType) {
         "SQL_STORED_PROCEDURE" {$TypeForDropStatement = 'PROCEDURE'; break}
         "SQL_SCALAR_FUNCTION" {$TypeForDropStatement = 'FUNCTION'; break}
         "VIEW" {$TypeForDropStatement = 'VIEW'; break}
         default {break}
     }
+
     $ReCreateProc = 0
-    [System.Collections.ArrayList]$FilePaths = @()
+    
     $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand
     $GetObjectListCmd.Connection = $SourceDbcon
     $GetObjectListCmd.CommandText = $QueryForObjectList
@@ -50,8 +52,11 @@ function Export-CreateScriptsForObjects {
     
     $ObjectListAdapter = New-Object System.Data.SqlClient.SqlDataAdapter $GetObjectListCmd
     $ObjectListDataSet = New-Object System.Data.DataSet
+    
+       
     $ObjectListAdapter.Fill($ObjectListDataSet) | out-null
-    $ObjectListReader.Close()
+
+    Write-Verbose "Objects found: $($ObjectListDataSet.Tables[0].Rows.Count)"
 
     $AddDefinitionListCmd = New-Object System.Data.SqlClient.SqlCommand
     $AddDefinitionListCmd.Connection = $TargetDbCon

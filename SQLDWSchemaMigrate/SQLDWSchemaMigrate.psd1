@@ -68,7 +68,8 @@
         'Remove-CreateScriptForObjectsFiles.ps1',
         'Set-DatabaseScopedCredential.ps1',
         'Set-ExternalDataSource.ps1',
-        'Set-ExternalFileFormat.ps1')
+        'Set-ExternalFileFormat.ps1',
+        'New-DDLStatementsTable')
 
     # Cmdlets to export from this module
     CmdletsToExport = '*'
