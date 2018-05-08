@@ -35,7 +35,7 @@ function Export-ColumnChanges {
     Write-Host "Creating new table sourceColumns in $TargetSqlServerName to store column metadata"
     $AddColumnListCmd = New-Object System.Data.SqlClient.SqlCommand
     $AddColumnListCmd.Connection = $TargetDbCon
-    $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), schemaname varchar (8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int, max_length SMALLINT)"
+    $AddColumnListCmd.CommandText = "IF OBJECT_ID ('sourceColumns', 'U') IS NOT NULL DROP TABLE sourceColumns; CREATE TABLE sourceColumns (databasename varchar(8000), schemaname varchar (8000), tablename varchar(8000),colname sysname,user_type_id int,column_id int, max_length SMALLINT, is_identity INT, seed_value INT, increment_value INT)"
     $AddColumnListCmd.ExecuteNonQuery() | Out-Null
 
 
@@ -50,10 +50,14 @@ function Export-ColumnChanges {
             ,c.user_type_id
             ,C.COLUMN_ID
             ,c.max_length
+			,CAST(ISNULL(c.is_identity,0) AS INT) as is_identity
+			,CAST(ISNULL(i.seed_value,0) AS INT) as seed_value
+			,CAST(ISNULL(i.increment_value,0) AS INT) as increment_value
         FROM sys.columns c
         INNER JOIN sys.objects o ON c.object_id = o.object_id
         INNER JOIN sys.schemas s ON s.schema_id = o.schema_id
         INNER JOIN sys.tables t ON t.object_id = o.object_id
+		LEFT JOIN sys.identity_columns i on i.object_id = o.object_id and c.column_id = i.column_id
         WHERE o.type = 'U'
             AND s.name = '$schemaName'
             and t.name = '$obJectName'
@@ -63,7 +67,7 @@ function Export-ColumnChanges {
             $GetObjectListCmd.CommandText = $NewQueryForObjectList
             $ObjectListReader = $GetObjectListCmd.ExecuteReader();
             if ($ObjectListReader.HasRows) {
-                $InsertStatement = "SET NOCOUNT ON `n INSERT INTO sourceColumns (databasename, schemaname, tablename, colname,user_type_id, column_id, max_length) "        
+                $InsertStatement = "SET NOCOUNT ON `n INSERT INTO sourceColumns (databasename, schemaname, tablename, colname,user_type_id, column_id, max_length, is_identity, seed_value, increment_value) "        
                 while ($ObjectListReader.Read()) {
                     $schemaName = $ObjectListReader.GetString(0)
                     $ColumnTable = $ObjectListReader.GetString(1)
@@ -81,7 +85,11 @@ function Export-ColumnChanges {
                     else{
                         $maxLength = 0
                     }
-                    $InsertStatement += "SELECT '$SqlDatabaseName', '$schemaName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId', '$maxLength' UNION ALL`n"
+                    $IsIdentity = $ObjectListReader.GetInt32(6)
+                    $SeedValue = $ObjectListReader.GetInt32(7)
+                    $IncrementValue = $ObjectListReader.GetInt32(8)
+
+                    $InsertStatement += "SELECT '$SqlDatabaseName', '$schemaName', '$ColumnTable', '$ColumnName', '$ColumnType', '$ColumnId', '$maxLength', $IsIdentity, $SeedValue, $IncrementValue UNION ALL`n"
                 }
                 $InsertStatement = $InsertStatement.Substring(0, $InsertStatement.Length - 10)
                 

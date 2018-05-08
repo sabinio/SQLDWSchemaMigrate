@@ -94,10 +94,9 @@ CREATE PROC [usp_ConstructCreateStatementForExternalTable] @schemaName [VARCHAR]
                    DECLARE @distributionClause AS VARCHAR(1000)
                    DECLARE @indexClause AS VARCHAR(1000)
                    SET @createClause = 
-                   'IF  NOT EXISTS (SELECT * FROM sys.objects 
-                  WHERE object_id = OBJECT_ID(N''[' + @schemaName + '].[' + @tableName + @nameAppendix + ']'') AND type in (N''U''))
-                  BEGIN
-                   CREATE TABLE [' + @schemaName + '].[' + @tableName + @nameAppendix + ']'
+                   'IF  NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N''[' + @schemaName + '].[' + @tableName + @nameAppendix + ']'') AND type in (N''U''))
+BEGIN
+	CREATE TABLE [' + @schemaName + '].[' + @tableName + @nameAppendix + ']'
                    SET @columnList = '(' + CHAR(13)+CHAR(10) + '   '
                    SET @columnDefinition = ''
                    SET @columnOrdinal = 0
@@ -111,17 +110,34 @@ CREATE PROC [usp_ConstructCreateStatementForExternalTable] @schemaName [VARCHAR]
             
                           SET @columnOrdinal = @columnOrdinal + 1
             
-                          SET @columnDefinition = (SELECT '[' + [COLUMN_NAME] + '] [' + [DATA_TYPE] + ']' 
-                                                                                 + CASE WHEN [DATA_TYPE] LIKE '%char%' THEN ISNULL('(' + CASE WHEN [CHARACTER_MAXIMUM_LENGTH] = '-1' THEN 'MAX'  WHEN [CHARACTER_MAXIMUM_LENGTH] != '-1' THEN CAST([CHARACTER_MAXIMUM_LENGTH] AS VARCHAR(10)) END + ')','') ELSE '' END
-                                                                                 + CASE WHEN [DATA_TYPE] LIKE '%binary%' THEN ISNULL('(' + CAST([CHARACTER_MAXIMUM_LENGTH] AS VARCHAR(10)) + ')','') ELSE '' END
-                                                                                 + CASE WHEN [DATA_TYPE] LIKE '%decimal%' THEN ISNULL('(' + CAST([NUMERIC_PRECISION] AS VARCHAR(10)) + ', ' + CAST([NUMERIC_SCALE] AS VARCHAR(10)) + ')','') ELSE '' END
-                                                                                 + CASE WHEN [DATA_TYPE] LIKE '%numeric%' THEN ISNULL('(' + CAST([NUMERIC_PRECISION] AS VARCHAR(10)) + ', ' + CAST([NUMERIC_SCALE] AS VARCHAR(10)) + ')','') ELSE '' END
-                                                                                 + CASE WHEN [DATA_TYPE] in ('datetime2','datetimeoffset') THEN ISNULL('(' + CAST([DATETIME_PRECISION] AS VARCHAR(10)) + ')','') ELSE '' END
-                                                                                 + CASE WHEN [IS_NULLABLE] = 'YES' THEN ' NULL' ELSE ' NOT NULL' END
-                                                                   FROM INFORMATION_SCHEMA.COLUMNS
-                                                                   WHERE [TABLE_SCHEMA] = @schemaName
-                                                                   AND [TABLE_NAME] = @tableName
-                                                                   AND [ORDINAL_POSITION] = @columnOrdinal)
+                          SET @columnDefinition = (SELECT '[' + c.[COLUMN_NAME] + '] [' + c.[DATA_TYPE] + ']' 
+                                                                                 + CASE WHEN c.[DATA_TYPE] LIKE '%char%' THEN ISNULL('(' + CASE WHEN c.[CHARACTER_MAXIMUM_LENGTH] = '-1' THEN 'MAX'  WHEN c.[CHARACTER_MAXIMUM_LENGTH] != '-1' THEN CAST(c.[CHARACTER_MAXIMUM_LENGTH] AS VARCHAR(10)) END + ')','') ELSE '' END
+                                                                                 + CASE WHEN c.[DATA_TYPE] LIKE '%binary%' THEN ISNULL('(' + CAST(c.[CHARACTER_MAXIMUM_LENGTH] AS VARCHAR(10)) + ')','') ELSE '' END
+                                                                                 + CASE WHEN c.[DATA_TYPE] LIKE '%decimal%' THEN ISNULL('(' + CAST(c.[NUMERIC_PRECISION] AS VARCHAR(10)) + ', ' + CAST(c.[NUMERIC_SCALE] AS VARCHAR(10)) + ')','') ELSE '' END
+                                                                                 + CASE WHEN c.[DATA_TYPE] LIKE '%numeric%' THEN ISNULL('(' + CAST(c.[NUMERIC_PRECISION] AS VARCHAR(10)) + ', ' + CAST(c.[NUMERIC_SCALE] AS VARCHAR(10)) + ')','') ELSE '' END
+                                                                                 + CASE WHEN c.[DATA_TYPE] in ('datetime2','datetimeoffset') THEN ISNULL('(' + CAST(c.[DATETIME_PRECISION] AS VARCHAR(10)) + ')','') ELSE '' END
+                                                                                 + CASE WHEN c.[IS_NULLABLE] = 'YES' THEN ' NULL' ELSE ' NOT NULL' END
+																				 + CASE WHEN ISNULL(ident.is_identity,0) = 1 THEN ' IDENTITY (' + CAST(ident.seed_value AS VARCHAR(5)) + ',' + CAST(ident.increment_value AS VARCHAR(5)) + ')' ELSE '' END
+                                                                   FROM INFORMATION_SCHEMA.COLUMNS c
+																   LEFT JOIN	(
+																				SELECT	s.name as [SCHEMA_NAME],
+																						o.name as [TABLE_NAME],
+																						c.name as [COLUMN_NAME],
+																						c.is_identity,
+																						i.seed_value,
+																						i.increment_value
+																				FROM	sys.schemas s 
+																				JOIN	sys.objects o on s.schema_id = o.schema_id
+																				JOIN	sys.columns c on o.object_id = c.object_id
+																				JOIN	sys.identity_columns i on o.object_id = i.object_id 
+																											and c.column_id = i.column_id
+																				) ident ON c.[TABLE_SCHEMA] = ident.[SCHEMA_NAME]
+																						AND c.[TABLE_NAME] = ident.[TABLE_NAME]
+																						AND c.[COLUMN_NAME] = ident.[COLUMN_NAME]
+                                                                   WHERE c.[TABLE_SCHEMA] = @schemaName
+                                                                   AND c.[TABLE_NAME] = @tableName
+                                                                   AND c.[ORDINAL_POSITION] = @columnOrdinal)
+
                    END
                    SET @columnList = @columnList +  + CHAR(13)+CHAR(10) + ')'
                    SET @distributionType = (
@@ -207,7 +223,7 @@ CREATE PROC [usp_ConstructCreateStatementForExternalTable] @schemaName [VARCHAR]
                                               + ' WITH ('  + CHAR(13)+CHAR(10) + @distributionClause
                                               + ', ' + @indexClause
                                               + CHAR(13)+CHAR(10) + ')
-                                              END'
+END'
             END
 '@
         }
@@ -282,6 +298,9 @@ CREATE PROC [usp_ConstructCreateStatementForExternalTable] @schemaName [VARCHAR]
                     ,colname
                     ,user_type_id
                     ,max_length
+					,is_identity
+					,seed_value
+					,increment_value
                 INTO #tempdevtablecolumns
                 FROM sourceColumns
                 WHERE tablename = @currentTable
@@ -295,7 +314,10 @@ CREATE PROC [usp_ConstructCreateStatementForExternalTable] @schemaName [VARCHAR]
                                 SELECT 0
                                 )
                         ) AS number,
-                        max_length
+                        max_length,
+						is_identity,
+						seed_value,
+						increment_value
                 INTO #addedcolumns
                 FROM (
                     SELECT b.*
@@ -314,6 +336,10 @@ CREATE PROC [usp_ConstructCreateStatementForExternalTable] @schemaName [VARCHAR]
                 DECLARE @currentcolname NVARCHAR(max);
                 DECLARE @currentcoltype NVARCHAR(max);
                 DECLARE @coltypename NVARCHAR(max);
+				DECLARE @colidentity NVARCHAR(max);
+				DECLARE @currentColIsIdentity INT;
+				DECLARE @currentColIsIdentitySeed INT;
+				DECLARE @currentColIsIdentityIncrement INT;
                 DECLARE @currentcollength NVARCHAR(max) = '';
                 DECLARE @SQL NVARCHAR(max);
             
@@ -328,17 +354,19 @@ CREATE PROC [usp_ConstructCreateStatementForExternalTable] @schemaName [VARCHAR]
                 -- Loop through added columns and adding columns in "production" table
                 WHILE (@secondcounter <= @totalnewcolumns)
                 BEGIN
-                    SET @currentcolname = (
-                            SELECT colname
-                            FROM #addedcolumns
-                            WHERE number = @secondcounter
-                            );
-                    SET @currentcoltype = (
-                            SELECT user_type_id
-                            FROM #addedcolumns
-                            WHERE number = @secondcounter
-                            );
-                    SET @coltypename = (
+
+                    SET @colidentity = ''
+				
+					SELECT	@currentcolname = colname,
+							@currentcoltype = user_type_id,
+							@currentColIsIdentity = is_identity, 
+							@currentColIsIdentitySeed = seed_value, 
+							@currentColIsIdentityIncrement = increment_value
+					FROM	#addedcolumns
+					WHERE	number = @secondcounter;					
+					
+					
+					SET @coltypename = (
                             SELECT name
                             FROM sys.types
                             WHERE user_type_id = @currentcoltype
@@ -352,12 +380,18 @@ CREATE PROC [usp_ConstructCreateStatementForExternalTable] @schemaName [VARCHAR]
                             );
                             SET @coltypename = @coltypename + @currentcollength
                     END
-                    SET @SQL = 'ALTER TABLE ' + @currentSchema +'.'+ @currentTable + ' ADD ' + @currentcolname + ' ' + @coltypename;
+
+					IF (@currentColIsIdentity = 1)
+					BEGIN
+							SET @colidentity = ' IDENTITY (' + CAST(@currentColIsIdentitySeed AS VARCHAR(5)) + ',' +  CAST(@currentColIsIdentityIncrement AS VARCHAR(5)) + ')'
+					END
+
+                    SET @SQL = 'ALTER TABLE ' + @currentSchema +'.'+ @currentTable + ' ADD ' + @currentcolname + ' ' + @coltypename + @colidentity;
             
                     PRINT '---------- Altering statement: ' + @SQL + ' ---------- ';
             
-                    INSERT INTO DDLStatements (TargetObject, DDLStmt, CreateDate) VALUES (@objectSchemaAndName, @SQL, @Now)
-            
+                    INSERT INTO DDLStatements (TargetObject, DDLStmt, CreateDate) VALUES (@objectSchemaAndName, @SQL, @Now)            
+
                     EXEC (@SQL);
             
                     SET @secondcounter = @secondcounter + 1
@@ -368,7 +402,7 @@ CREATE PROC [usp_ConstructCreateStatementForExternalTable] @schemaName [VARCHAR]
                 SET @counter = @counter + 1;
             END
             
-            DROP TABLE #Temp1;           
+            DROP TABLE #Temp1;          
             
 '@            
         }
