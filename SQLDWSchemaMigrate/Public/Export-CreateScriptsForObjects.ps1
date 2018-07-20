@@ -33,7 +33,6 @@ function Export-CreateScriptsForObjects {
 
     $ErrorActionPreference = 'stop'
     $QueryForObjectList = Get-ListQuery -ObjectType $ObjectType
-
     Write-Verbose "`$QueryForObjectList = $QueryForObjectList"
 
     switch ($ObjectType) {
@@ -44,6 +43,10 @@ function Export-CreateScriptsForObjects {
     }
 
     $ReCreateProc = 0
+
+    if ($ObjectType -eq 'ExternalTables') {
+        Remove-ModifiedExternalTables -SourceDbcon $SourceDbcon -TargetDbCon $TargetDbCon
+    }
     
     $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand
     $GetObjectListCmd.Connection = $SourceDbcon
@@ -140,6 +143,7 @@ function Export-CreateScriptsForObjects {
             }
         }
         elseif ($ObjectType -in "Tables", "ExternalTables") {
+
             $TableScriptCmd = New-Object System.Data.SqlClient.SqlCommand
             $TableScriptCmd.CommandTimeout = 300
             $TableScriptCmd.Connection = $SourceDbcon
