@@ -95,7 +95,17 @@ function Export-ColumnChanges {
                 
                 $PathToOutput = "$WorkingDirectory\$sqlDatabaseName\InsertStatement_$schemaName$ColumnTable.sql"
                 New-item -path $PathToOutput -value $InsertStatement -type 'file' -force | Out-Null
-                sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $TargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+                
+                if ($TargetDbCon.ConnectionString -like '*Authentication=Active Directory Password*') {
+                    Write-Verbose "Connecting to $TargetDatabaseName on $TargetSqlServerName using AAD authentication.."
+                    sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $TargetDatabaseName -G -U $Username -P $Password -I  -y 0 -b -j
+                } else 
+                {
+                    Write-Verbose "Connecting to $TargetDatabaseName on $TargetSqlServerName using SQL server authentication.."
+                    sqlcmd -i $PathToOutput -S $TargetSqlServerName -d $TargetDatabaseName -U $Username -P $Password -I  -y 0 -b -j
+                }
+
+                
                 if ($LASTEXITCODE -ne 0) {
                     $msgToThrow = "Something has gone wrong, consult the output of sqlcmd above for issue."
                     Throw $msgToThrow
@@ -110,7 +120,15 @@ function Export-ColumnChanges {
         $SQLFile = "$WorkingDirectory\AddTableChanges.sql"
         New-item -path $SQLFile -value $(Get-HelperSQL 'AddTableChanges') -type 'file' -force | Out-Null
 
-        sqlcmd -i $SQLFile -S $TargetSqlServerName -d $TargetDatabaseName  -G -U $Username -P $Password -I  -y 0 -b -j  
+
+        if ($TargetDbCon.ConnectionString -like '*Authentication=Active Directory Password*') {
+            Write-Verbose "Connecting to $TargetDatabaseName on $TargetSqlServerName using AAD authentication.."
+            sqlcmd -i $SQLFile -S $TargetSqlServerName -d $TargetDatabaseName  -G -U $Username -P $Password -I  -y 0 -b -j  
+        } else 
+        {
+            Write-Verbose "Connecting to $TargetDatabaseName on $TargetSqlServerName using SQL server authentication.."
+            sqlcmd -i $SQLFile -S $TargetSqlServerName -d $TargetDatabaseName  -U $Username -P $Password -I  -y 0 -b -j  
+        }
         if ($LASTEXITCODE -ne 0) {
             $msgToThrow = "Something went wrong whilst adding new columns. Consult the output of sqlcmd above for issue."
             Throw $msgToThrow 

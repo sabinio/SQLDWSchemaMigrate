@@ -20,7 +20,7 @@ Function Compare-ExternalTables {
     )
 
 
-    Write-Verbose "Comparing DB $($sourceConn.Database) on server $($sourceConn.DataSource) with DB $($targetConn.Database) on server $($targetConn.DataSource).."
+    Write-Verbose "Comparing external tables on DB $($sourceConn.Database) on server $($sourceConn.DataSource) with DB $($targetConn.Database) on server $($targetConn.DataSource).."
 
     $sqlQuery = ";WITH WorkingCTE AS (
         select 
@@ -67,18 +67,6 @@ Function Compare-ExternalTables {
     $targetColumnHashes = $targetResultSet.Tables[0] | Select-Object ObjectName, rowhash
     Write-Verbose "TargetDB object rows: $((($targetColumnHashes) | Measure-Object).Count)"
 
-    #$sourceColumnHashes 
-    #Write-output "-------------------------"
-    #$targetColumnHashes 
-
-    
-
-    # Objects in both databases but different..
-    #Compare-Object -ReferenceObject $sourceColumnHashes -DifferenceObject $targetColumnHashes -Property rowhash 
- 
-    
-    
-
     # If there are no results from the target database:
     if (!$targetColumnHashes) {
         Write-Verbose "No external tables exist in the target database"
@@ -87,7 +75,7 @@ Function Compare-ExternalTables {
             $sourceColumnHashes | ForEach-Object {
                 $diffs += (New-Object -Type psobject -Property  @{'ObjectName' =$_.ObjectName;  'ComparisonResult' = 'SourceOnly'    })                
             }
-            $comparisonResults = $diffs | Select-Object Schema, Object, ComparisonResult | Sort-Object -Property Schema, Object  -Unique 
+            $comparisonResults = $diffs | Select-Object ObjectName, ComparisonResult | Sort-Object -Property ObjectName  -Unique 
         }        
     }
 
@@ -99,11 +87,12 @@ Function Compare-ExternalTables {
             $targetColumnHashes | ForEach-Object {
                 $diffs += (New-Object -Type psobject -Property  @{'ObjectName' =$_.ObjectName;  'ComparisonResult' = 'TargetOnly'    })                
             }
-            $comparisonResults = $diffs | Select-Object Schema, Object, ComparisonResult | Sort-Object -Property Schema, Object  -Unique 
+            $comparisonResults = $diffs | Select-Object ObjectName, ComparisonResult | Sort-Object -Property ObjectName  -Unique 
         }        
     }
     
     if ($sourceColumnHashes -and $targetColumnHashes) {
+        Write-Verbose "External tables exist in both source and target databases"
         $diffs = @()
         $same = @()
         $comparisonResults = @()
@@ -145,6 +134,8 @@ Function Compare-ExternalTables {
     Write-Verbose "    TargetOnly: $(($comparisonResults | Where-Object {$_.ComparisonResult -eq 'TargetOnly'} | Measure-Object).Count)"
     Write-Verbose "    Differ    : $(($comparisonResults | Where-Object {$_.ComparisonResult -eq 'Differ'} | Measure-Object).Count)"
     Write-Verbose "    Equal     : $(($comparisonResults | Where-Object {$_.ComparisonResult -eq 'Equal'} | Measure-Object).Count)"
+
+    $comparisonResults | out-file 'c:\temp\foo1.txt'
 
     Return $comparisonResults 
 

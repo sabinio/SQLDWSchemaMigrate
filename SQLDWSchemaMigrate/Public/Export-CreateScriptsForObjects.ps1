@@ -45,7 +45,11 @@ function Export-CreateScriptsForObjects {
     $ReCreateProc = 0
 
     if ($ObjectType -eq 'ExternalTables') {
-        Remove-ModifiedExternalTables -SourceDbcon $SourceDbcon -TargetDbCon $TargetDbCon
+        $DroppedExternalTables = Remove-ModifiedExternalTables -SourceDbcon $SourceDbcon -TargetDbCon $TargetDbCon
+
+        #Write-Verbose "Dropped external tables: "
+        #Write-Verbose ($DroppedExternalTables | Out-String)
+
     }
     
     $GetObjectListCmd = New-Object System.Data.SqlClient.SqlCommand

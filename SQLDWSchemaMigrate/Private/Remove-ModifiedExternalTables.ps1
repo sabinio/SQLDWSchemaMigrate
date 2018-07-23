@@ -17,8 +17,6 @@ function Remove-ModifiedExternalTables {
         [System.Data.SqlClient.SqlConnection]$TargetDbCon
         ) 
 
-       
-
         # Get a list of external tables to drop
         $ExternalTablesForDeletion = Compare-ExternalTables -sourceConn $sourceDbcon -targetConn $targetDbcon | Where-Object {@('TargetOnly','Differ') -contains $_.ComparisonResult} 
 
@@ -28,7 +26,7 @@ function Remove-ModifiedExternalTables {
         $ExternalTablesForDeletion | Select-Object -PipelineVariable Diff | ForEach-Object {
 
             $SQLToExecute = "DROP EXTERNAL TABLE $($Diff.ObjectName);"
-            Write-Verbose "Dropping external table $($Diff.ObjectName)"
+            Write-Verbose "Dropping external table $($Diff.ObjectName). Reason: $($Diff.ComparisonResult)"
 
             $SQLCmdObj.CommandText = $SQLToExecute
             try {
@@ -41,9 +39,5 @@ function Remove-ModifiedExternalTables {
 
         }
 
-
-
-
-
-
+        Return $ExternalTablesForDeletion 
 }

@@ -57,47 +57,48 @@ Set-DatabaseScopedCredential -SourceDbcon $conn -TargetDbCon $TargetDbConn -alte
             $credentialName = $CredentialListReader.GetString(0)
             $credentialIdentity = $CredentialListReader.GetString(3)
             $credentialSecret = Get-Variable $credentialName -ValueOnly
-        }
-        if ($null -eq $credentialSecret -and $alterSecretCredentialOnly -eq $false) {
-            Write-Host "No variable named $credentialName exists in session. Will create/alter scoped credential without a secret."
-            $sqlCreateScopedCredential = "IF NOT EXISTS (select name from sys.database_scoped_credentials where name = '$credentialName')
-            CREATE DATABASE SCOPED CREDENTIAL $credentialName  
-            WITH IDENTITY = '$credentialIdentity'
-            ELSE
-            ALTER DATABASE SCOPED CREDENTIAL $credentialName WITH IDENTITY = '$credentialIdentity'"
-        } 
-        elseif ($null -eq $credentialSecret -and $alterSecretCredentialOnly -eq $true) {
-            Write-Host "No variable named $credentialName exists in session, and Switch 'alterCredentialsWithSecretOnly' is preventing credential $credentialName from being updated."
-        }
-        elseif ($null -ne $credentialSecret) {
-            Write-Host "Variable $credentialName exists in session. Will create/alter scoped credential with a secret."
-            $sqlCreateScopedCredential = "IF NOT EXISTS (select name from sys.database_scoped_credentials where name = '$credentialName')
-            CREATE DATABASE SCOPED CREDENTIAL $credentialName  
-            WITH IDENTITY = '$credentialIdentity',
-            SECRET = '$credentialSecret';
-            ELSE
-            ALTER DATABASE SCOPED CREDENTIAL $credentialName WITH IDENTITY = '$credentialIdentity', SECRET = '$credentialSecret'"
-        }
-        if ($null -ne $sqlCreateScopedCredential) {
-            $newsqlCreateScopedCredentialCmd = New-Object System.Data.SqlClient.SqlCommand
-            $newsqlCreateScopedCredentialCmd.Connection = $TargetDbCon
-            $newsqlCreateScopedCredentialCmd.CommandText = $sqlCreateScopedCredential
-            try {
-                Write-Host "Executing statement to create/alter Database Scoped Credential $credentialName"
-                $newsqlCreateScopedCredentialCmd.ExecuteNonQuery() | Out-Null
+        
+            if ($null -eq $credentialSecret -and $alterSecretCredentialOnly -eq $false) {
+                Write-Host "No variable named $credentialName exists in session. Will create/alter scoped credential without a secret."
+                $sqlCreateScopedCredential = "IF NOT EXISTS (select name from sys.database_scoped_credentials where name = '$credentialName')
+                CREATE DATABASE SCOPED CREDENTIAL $credentialName  
+                WITH IDENTITY = '$credentialIdentity'
+                ELSE
+                ALTER DATABASE SCOPED CREDENTIAL $credentialName WITH IDENTITY = '$credentialIdentity'"
+            } 
+            elseif ($null -eq $credentialSecret -and $alterSecretCredentialOnly -eq $true) {
+                Write-Host "No variable named $credentialName exists in session, and Switch 'alterCredentialsWithSecretOnly' is preventing credential $credentialName from being updated."
             }
-            catch {
-                $_.Exception
+            elseif ($null -ne $credentialSecret) {
+                Write-Host "Variable $credentialName exists in session. Will create/alter scoped credential with a secret."
+                $sqlCreateScopedCredential = "IF NOT EXISTS (select name from sys.database_scoped_credentials where name = '$credentialName')
+                CREATE DATABASE SCOPED CREDENTIAL $credentialName  
+                WITH IDENTITY = '$credentialIdentity',
+                SECRET = '$credentialSecret';
+                ELSE
+                ALTER DATABASE SCOPED CREDENTIAL $credentialName WITH IDENTITY = '$credentialIdentity', SECRET = '$credentialSecret'"
             }
-            $verifyQuery = "IF EXISTS (SELECT name, credential_identity from sys.database_scoped_credentials where name = '$credentialName' and credential_identity = '$credentialIdentity') SELECT 1"
-            $newsqlCreateScopedCredentialCmd.CommandText = $verifyQuery
-            $VerifySCopedCredential = $newsqlCreateScopedCredentialCmd.ExecuteScalar()
-            if ($VerifySCopedCredential -ne 1) {
-                $msg = "Something has gone wrong in trying to create/update scoped credential"
-                Throw $msg
-            }
-            else {
-                Write-Verbose "Database Scoped Credential $credentialName successfully created/altered."
+            if ($null -ne $sqlCreateScopedCredential) {
+                $newsqlCreateScopedCredentialCmd = New-Object System.Data.SqlClient.SqlCommand
+                $newsqlCreateScopedCredentialCmd.Connection = $TargetDbCon
+                $newsqlCreateScopedCredentialCmd.CommandText = $sqlCreateScopedCredential
+                try {
+                    Write-Host "Executing statement to create/alter Database Scoped Credential $credentialName"
+                    $newsqlCreateScopedCredentialCmd.ExecuteNonQuery() | Out-Null
+                }
+                catch {
+                    $_.Exception
+                }
+                $verifyQuery = "IF EXISTS (SELECT name, credential_identity from sys.database_scoped_credentials where name = '$credentialName' and credential_identity = '$credentialIdentity') SELECT 1"
+                $newsqlCreateScopedCredentialCmd.CommandText = $verifyQuery
+                $VerifySCopedCredential = $newsqlCreateScopedCredentialCmd.ExecuteScalar()
+                if ($VerifySCopedCredential -ne 1) {
+                    $msg = "Something has gone wrong in trying to create/update scoped credential"
+                    Throw $msg
+                }
+                else {
+                    Write-Verbose "Database Scoped Credential $credentialName successfully created/altered."
+                }
             }
         }
     }
