@@ -135,8 +135,6 @@ Function Compare-ExternalTables {
     Write-Verbose "    Differ    : $(($comparisonResults | Where-Object {$_.ComparisonResult -eq 'Differ'} | Measure-Object).Count)"
     Write-Verbose "    Equal     : $(($comparisonResults | Where-Object {$_.ComparisonResult -eq 'Equal'} | Measure-Object).Count)"
 
-    $comparisonResults | out-file 'c:\temp\foo1.txt'
-
     Return $comparisonResults 
 
 }
