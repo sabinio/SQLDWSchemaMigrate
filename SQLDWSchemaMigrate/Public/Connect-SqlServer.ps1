@@ -22,14 +22,36 @@ Function Connect-SqlServer {
     $pword = "Passwords4U"
     $conn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $uName -password $pword
     #>
+    [CmdletBinding()]
     param(
         $sqlServerName,
         $sqlDatabaseName,
         $userName,
-        $password
+        $password,
+        [pscredential] $credential,
+        [ValidateSet('Active Directory Password','SQL')]
+        [string] $authentication = 'Active Directory Password'
     )
+
+    if ($credential) {
+        Write-Verbose "`$credential parameter was supplied - ignoring `$username and `$password parameters!"
+        $userName = $credential.UserName
+        $password = $credential.GetNetworkCredential().Password
+    }
+
+    switch ($authentication) {
+        'Active Directory Password' {
+            $connString = "Server = $SqlServerName; Database = $SqlDatabaseName; Authentication=Active Directory Password; UID = $Username; PWD = $Password;"
+        }
+        'SQL' {
+            $connString = "Server = $SqlServerName; Database = $SqlDatabaseName; UID = $Username; PWD = $Password;"
+        }
+
+
+    }
+
     $userDbCon = New-Object System.Data.SqlClient.SqlConnection
-    $userDbCon.ConnectionString = "Server = $SqlServerName; Database = $SqlDatabaseName; Authentication=Active Directory Password; UID = $Username; PWD = $Password;"
+    $userDbCon.ConnectionString = $connString
     try {
         Write-Host "Opening connection to database $SqlDatabaseName on server $SqlServerName.."
         $userDbCon.Open();

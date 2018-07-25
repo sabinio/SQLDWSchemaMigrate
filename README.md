@@ -83,6 +83,8 @@ Because of this, no data loss can occur.
 #### Tables And External Tables
 Tables are a little more complicated. There is a process to create tables that are not in target but are in source that follows the same process as the objects above, except that a stored procedure is created (usp_ConstructCreateStatementForTable for typical tables and usp_ConstructCreateStatementForExternalTable for external tables) and executed for each table that needs to be created.
 
+External tables which differ are dropped before being re-created.  External tables which exist in the target database but not in the source database are dropped.
+
 ##### Managing table changes
 The advice from Microsoft is never drop columns from an Azure DataWarehouse, only add more columns. Therefore at this time, only adding columns is supported through the migration method. The process to add columns is - 
 
@@ -166,7 +168,7 @@ $TargetDBPassword = $TargetDBCredential.GetNetworkCredential().Password
 $sourceDbcon = Connect-SqlServer -sqlServerName $SourceServerName -sqlDatabaseName $DatabaseName -userName $SourceDBUsername -password $SourceDBPassword
 
 #Target database connection..
-$targetDbcon = Connect-SqlServer -sqlServerName $TargetServerName -sqlDatabaseName $targetDatabaseName -userName $uName -password $pword
+$targetDbcon = Connect-SqlServer -sqlServerName $TargetServerName -sqlDatabaseName $targetDatabaseName -userName $TargetDBUsername -password $TargetDBPassword
 
 
 ##########
