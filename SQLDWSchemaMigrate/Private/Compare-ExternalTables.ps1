@@ -55,17 +55,15 @@ Function Compare-ExternalTables {
                 SchemaName + '.' + ExternalTableName + '|' + CONVERT(VARCHAR(20),CHECKSUM(*)) as rowhash 
         from WorkingCTE1"
 
-    $sourceResultSet = New-Object "System.Data.DataSet" "DsCols"
+    $sourceResultSet = New-Object "System.Data.DataSet"
     $dataAdapter = new-object "System.Data.SqlClient.SqlDataAdapter" ($sqlQuery, $sourceConn);
     $dataAdapter.Fill($sourceResultSet) | Out-Null 
     $sourceColumnHashes = $sourceResultSet.Tables[0] | Select-Object ObjectName, rowhash
-    Write-Verbose "SourceDB object rows: $((($sourceColumnHashes) | Measure-Object).Count)"
 
-    $targetResultSet = New-Object "System.Data.DataSet" "DsCols"
+    $targetResultSet = New-Object "System.Data.DataSet"
     $dataAdapter = new-object "System.Data.SqlClient.SqlDataAdapter" ($sqlQuery, $targetConn);
     $dataAdapter.Fill($targetResultSet) | Out-Null    
     $targetColumnHashes = $targetResultSet.Tables[0] | Select-Object ObjectName, rowhash
-    Write-Verbose "TargetDB object rows: $((($targetColumnHashes) | Measure-Object).Count)"
 
     # If there are no results from the target database:
     if (!$targetColumnHashes) {
@@ -92,39 +90,34 @@ Function Compare-ExternalTables {
     }
     
     if ($sourceColumnHashes -and $targetColumnHashes) {
-        Write-Verbose "External tables exist in both source and target databases"
         $diffs = @()
         $same = @()
         $comparisonResults = @()
 
-        # Objects only in source or only in target database:
-        Compare-Object -ReferenceObject $sourceColumnHashes -DifferenceObject $targetColumnHashes -Property ObjectName | 
-        Sort-Object ObjectName -Unique | 
-        where-object {@('=>','<=') -contains $_.SideIndicator} -PipelineVariable diff | 
-        ForEach-Object {
-            $ComparisonResult = if($diff.SideIndicator -eq '=>') {'TargetOnly'} else {'SourceOnly'}
-            $diffs += (New-Object -Type psobject -Property  @{'ObjectName' = $diff.ObjectName;  'ComparisonResult' = $ComparisonResult   })                
-        }
-        $comparisonResults += $diffs
-    
-        # Objects which differ
-         Compare-Object -ReferenceObject $sourceColumnHashes -DifferenceObject $targetColumnHashes -Property RowHash -PipelineVariable Diff | ForEach-Object {        
-             $ObjectName = ($diff.RowHash -split '\|')[0]             
-             $diffs += (New-Object -Type psobject -Property  @{'ObjectName' = $ObjectName;  'ComparisonResult' = 'Differ'    })                
-         }
-         $comparisonResults += $diffs | Select-Object ObjectName, ComparisonResult | 
-                                        Sort-Object -Property ObjectName, ComparisonResult -Unique | 
-                                        Where-Object {$comparisonResults.ObjectName -notcontains $_.ObjectName}
 
-         # Matching objects
-         Compare-Object -ReferenceObject $sourceColumnHashes -DifferenceObject $targetColumnHashes -IncludeEqual -ExcludeDifferent -Property ObjectName | 
-         Sort-Object ObjectName -Unique -PipelineVariable diff | 
-         ForEach-Object {
-             $same += (New-Object -Type psobject -Property  @{'ObjectName' = $diff.ObjectName;  'ComparisonResult' = 'Equal'   })                
-         }
-         $comparisonResults += $same | Select-Object ObjectName, ComparisonResult | 
-                                       Sort-Object -Property ObjectName, ComparisonResult -Unique | 
-                                       Where-Object {$comparisonResults.ObjectName -notcontains $_.ObjectName}
+        $ObjectCompareDiffs = Compare-Object -ReferenceObject $sourceColumnHashes -DifferenceObject $targetColumnHashes -Property rowhash | Select-Object @{Name="ObjectName";Expression={(($_.rowhash).Split('|'))[0]}}, SideIndicator
+        Sort-Object ObjectName -Unique |
+        where-object {@('=>','<=') -contains $_.SideIndicator} 
+
+        # Find objects which exist on both sides.  These may be the same or different.  If the comparison results contain a difference for the object, then they're different, otherwise identical
+        $sourceColumnHashes | Where-Object {$targetColumnHashes.ObjectName -contains $_.ObjectName} | Sort-Object ObjectName -Unique | Select-Object ObjectName | ForEach-Object {
+            if ($ObjectCompareDiffs.ObjectName -contains $_.ObjectName) {$ComparisonResult = 'Differ'} else {$ComparisonResult = 'Equal'}
+            $diffs += (New-Object -Type psobject -Property  @{'ObjectName' = $_.ObjectName;  'ComparisonResult' = $ComparisonResult   })                
+        }
+
+        # Find objects which exist only on the 'Source' side.
+        $ComparisonResult = 'SourceOnly'
+        $sourceColumnHashes | Where-Object {$targetColumnHashes.ObjectName -notcontains $_.ObjectName -and $diffs.ObjectName -notcontains $_.ObjectName} | Sort-Object ObjectName -Unique | Select-Object ObjectName | ForEach-Object {
+            $diffs += (New-Object -Type psobject -Property  @{'ObjectName' = $_.ObjectName;  'ComparisonResult' = $ComparisonResult   })                
+        }
+
+        # Find objects which exist only on the 'Target' side.
+        $ComparisonResult = 'TargetOnly'
+        $targetColumnHashes | Where-Object {$sourceColumnHashes.ObjectName -notcontains $_.ObjectName -and $diffs.ObjectName -notcontains $_.ObjectName} | Sort-Object ObjectName -Unique | Select-Object ObjectName | ForEach-Object {
+            $diffs += (New-Object -Type psobject -Property  @{'ObjectName' = $_.ObjectName;  'ComparisonResult' = $ComparisonResult   })                
+        }
+
+        $comparisonResults += $diffs | Select-Object ObjectName, ComparisonResult                                                                      
 
 
     }
@@ -134,6 +127,8 @@ Function Compare-ExternalTables {
     Write-Verbose "    TargetOnly: $(($comparisonResults | Where-Object {$_.ComparisonResult -eq 'TargetOnly'} | Measure-Object).Count)"
     Write-Verbose "    Differ    : $(($comparisonResults | Where-Object {$_.ComparisonResult -eq 'Differ'} | Measure-Object).Count)"
     Write-Verbose "    Equal     : $(($comparisonResults | Where-Object {$_.ComparisonResult -eq 'Equal'} | Measure-Object).Count)"
+
+    Write-Verbose "`n`nComparison detail:`n$($comparisonResults | Out-String)"
 
     Return $comparisonResults 
 
