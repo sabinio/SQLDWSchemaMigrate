@@ -15,28 +15,49 @@ Function Connect-SqlServer {
     SQL User we are connecting with
     .Parameter Password
     Password of SQL User
-    .Example
+    .Parameter Credential
+    A powershell credential object
+    .Parameter Authentication
+    The authentication method
+    .EXAMPLE
     $ServerName = "myServer.database.windows.net"
     $DatabaseName = "AdwSourceDatabase"
     $uName = "me"
     $pword = "Passwords4U"
     $conn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -userName $uName -password $pword
+    .EXAMPLE
+    $ServerName = "myServer.database.windows.net"
+    $DatabaseName = "AdwSourceDatabase"
+    $Credential = Get-Credential
+    $conn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -credential $Credential
+    .EXAMPLE
+    $ServerName = "myServer.database.windows.net"
+    $DatabaseName = "AdwSourceDatabase"
+    $Credential = Get-Credential
+    $conn = Connect-SqlServer -sqlServerName $ServerName -sqlDatabaseName $DatabaseName -credential $Credential -authentication 'SQL'
     #>
     [CmdletBinding()]
     param(
-        $sqlServerName,
-        $sqlDatabaseName,
-        $userName,
-        $password,
+        [string] $sqlServerName,
+        [string] $sqlDatabaseName,
+        [string] $userName,
+        [string] $password,
         [pscredential] $credential,
         [ValidateSet('Active Directory Password','SQL')]
         [string] $authentication = 'Active Directory Password'
     )
 
+
+
     if ($credential) {
         Write-Verbose "`$credential parameter was supplied - ignoring `$username and `$password parameters!"
         $userName = $credential.UserName
         $password = $credential.GetNetworkCredential().Password
+    }
+    else {
+        if (-not $userName) {
+            Write-Error "No authentication credentials supplied. Either pass -username and -password parameters, or use -credential to pass a credential object." -ErrorAction Stop
+        }
     }
 
     switch ($authentication) {
