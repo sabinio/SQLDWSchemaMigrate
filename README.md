@@ -22,7 +22,7 @@ If you're deploying an entire database, then it might take a while - in my testi
 
 The more objects you have to deploy, and the more objects that exist in your source database, the longer a deployment takes, which is why it is best to deploy often to minimize the time taken and risk of failure.  
 
-### What Objects Are Migrated?
+## What Objects Are Migrated?
 Currently there are 10 Objects supported; 
 1. Tables
 2. Views
@@ -37,7 +37,7 @@ Currently there are 10 Objects supported;
 
 In addition, columns added to tables that already exist on the server are migrated. 
 
-### How Are Objects Migrated?
+## How Are Objects Migrated?
 Some objects can be dropped and re-created; however where data loss is a possibility, this is obviously a very bad idea. Despite this, the process for all objects follows a similar pattern - 
 
 * Connect to source database.
@@ -47,13 +47,13 @@ Some objects can be dropped and re-created; however where data loss is a possibi
 
 Below details individually how objects are migrated. 
 
-#### Schemas
+### Schemas
 All user schemas are listed from source database and if they do not exist then are created on target database. This step needs to run prior to any other object as there may be a dependency.
 
-#### External File Formats and External Data Sources
+### External File Formats and External Data Sources
 All of the External File Formats/Data Sources are listed from the target. For each of these objects, a SQL Command is created and executed on the target. Note it is only created if it does not exist - currnelty it is not possible to alter either of these obejcts without dropping and re-creating. This is complicated by the fact that you cannot drop either of these objects if there is an external table which references them. This option may or may not be added in the near future!
 
-#### Database-Scoped Credentials
+### Database-Scoped Credentials
 External Data Sources use database-scoped credentials to access the external data. If credential does nto exist it is created. however it if exists it is altered. This allows to modify the IDENTITY and SECRET of a credential.
 
 Because it is not possible to read the SECRET from the source server, a PowerShell variable that matches the name of the credential set to the value of the secret must exist in order to set the SECRET. If this does not exist, then the Function will fail. It is possible to override this behaviour, as noted inteh the Get-Help for the function ```set-databasescopedcredentials```
@@ -64,10 +64,10 @@ Because it is not possible to read the SECRET from the source server, a PowerShe
 # Like the switch above, this will prevent secrets from being accidentally dropped on the target server if a PowerShell variable is not specified in the session.
 # However unlike the Switch above that omits an error being thrown, this will continue to alter those credentials that have secrets set. 
 ```
-#### Database Master Keys
+### Database Master Keys
 As Credentials require database master keys to be created, the function ```New-AzureDatabaseMasterkey``` will create such a key. This needs to be explicitly executed with a password.
 
-#### Functions, Views and Procedures
+### Functions, Views and Procedures
 Details of objects are listed from source database. The source definition of the object is compared to the defintion on the target database. If the definitions do not match the object is dropped on the target and re-created. No data loss can occur.
 
 Views in SQL Data Warehouse are metadata only. Consequently the following options are not available:
@@ -80,7 +80,7 @@ Views in SQL Data Warehouse are metadata only. Consequently the following option
 
 Because of this, no data loss can occur.
 
-#### Tables And External Tables
+### Tables And External Tables
 Tables are a little more complicated. There is a process to create tables that are not in target but are in source that follows the same process as the objects above, except that a stored procedure is created (usp_ConstructCreateStatementForTable for typical tables and usp_ConstructCreateStatementForExternalTable for external tables) and executed for each table that needs to be created.
 
 External tables which differ are dropped before being re-created.  External tables which exist in the target database but not in the source database are dropped.
@@ -121,28 +121,25 @@ Currently the behaviour is that it is not dropped on the target database. THere'
 ##### What Happens to Table Changes on the Target Database When I Run Apply Changes from Source?
 Basically, you're on your own. The idea of this module is to automate aligning databases from source to target. If you go and make changes to the target database not using this PowerShell Module then I don't really know how the changes will apply and there's a limit to how much can be anticipated.
 
-#### Are There Any Other Objects Created on The Databases By This Module
+##### Are There Any Other Objects Created on The Databases By This Module
 Two stored procedures called ```usp_ConstructCreateStatementForTable``` and ```usp_ConstructCreateStatementForExternalTable``` are created, which is used to generated the ```CREATE <EXTERNAL> TABLE``` statement. This is created on the source database. The columns are added when the module runs ```AddTableChanges.sql```
 
-#### What Happens If I Rename an Object on the Source Database?
+##### What Happens If I Rename an Object on the Source Database?
 As of January 2018, and as with columns, renaming objects is not supported by Azure SQL Data Warehouse.
 
 ### Authentication
-Currently, the only authentication method supported by this module is Azure Active Directory Password Authentication. There is a huge amount of documentation on the [Microsoft Docs Website](https://docs.microsoft.com/en-us/azure/sql-database/sql-database-aad-authentication-configure#active-directory-password-authentication). However for brevities sake, in the ```Connect-SqlServer``` function, you can see that the connection string invoked sets the authentication type, as well as user name and password - 
-```"Server = $SqlServerName; Database = $SqlDatabaseName; Authentication=Active Directory Password; UID = $Username; PWD = $Password;"```
-The files that are created are executed using sqlcmd - throughout ```Export-CreateScriptsForObjects``` you will notice sqlcmd being used multiple times - 
-```sqlcmd -i $FileWithCheckDefinitionQuery -S $SqlServerName -d $SqlDatabaseName -U $Username -P $Password -G -I -o $PathToOutput$ObjectName'_Check'.sql -v object_id=$ObjectId schema_id=$SchemaId  -y 0 -b -j ```
+Both SQL authentication and Azure Active Directory Password Authentication is supported. The authentication type is specified when calling the `Connect-SqlServer` function using the `-authentication` parameter which can only be set as `SQL` or `Active Directory Password`, which is the default.  This authentication type is respected when `sqlcmd` is run within `Export-ColumnChanges`.
 
-The -G option defines that sqlcmd uses Azure Active Directory for authentication. -U and -P Can still be used to pass the username and password.
+There is a huge amount of documentation on the [Microsoft Docs Website](https://docs.microsoft.com/en-us/azure/sql-database/sql-database-aad-authentication-configure#active-directory-password-authentication). 
 
 ### Permissions
- Because we are dropping and creating objects, as well as reading sys tables, db_owner on the table should be the minimum.
+Since we are dropping and creating objects, as well as reading sys tables, db_owner on the table should be the minimum.
 
 ### How do I know what changes were migrated?
 Any changes made to the target database are logged to a table called `DDLStatements`.  This table contains every DDL statement executed against the target database.  The function `Export-SchemaDDLStatements` can be used to save the DDL statements to a single file, or one file per object modified.
 
 
-### How To
+### Example
 The below script will extract all the differences from the source database and apply them to the target database. This assumes you have both databases created, the relevant permissions setup,and that the source database has some objects to migrate over.  
 
 The example also assumes that database are on seperate servers, but this does not have to be the case in real life.
@@ -171,27 +168,11 @@ $sourceDbcon = Connect-SqlServer -sqlServerName $SourceServerName -sqlDatabaseNa
 $targetDbcon = Connect-SqlServer -sqlServerName $TargetServerName -sqlDatabaseName $targetDatabaseName -userName $TargetDBUsername -password $TargetDBPassword
 
 
-##########
-#        #
-# remove #
-#        #
-##########
-# Remove-CreateScriptForObjectsFiles $sourceDbcon $listSchemasQuery "Schemas" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
-# Remove-CreateScriptForObjectsFiles $sourceDbcon $listTablesQuery "Tables" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
-# Remove-CreateScriptForObjectsFiles $sourceDbcon $listFunctionsQuery "ScalarFunctions" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
-# Remove-CreateScriptForObjectsFiles $sourceDbcon $listViewsQuery "Views" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName 
-# Remove-CreateScriptForObjectsFiles $sourceDbcon $listStoredProceduresQuery "StoredProcedures" -sqlServerName $ServerName -sqlDatabaseName $DatabaseName                                                                                                       
-# ##########
-# #        #
-# # export #
-# #        #
-# ##########
-
 $date1=get-date
 
 New-DDLStatementsTable -TargetDbCon $targetDbcon 
 
-#Set-DatabaseScopedCredential -SourceDbcon $sourceDbcon -TargetDbCon $targetDbcon
+Set-DatabaseScopedCredential -SourceDbcon $sourceDbcon -TargetDbCon $targetDbcon
 Set-ExternalDataSource -SourceDbcon $sourceDbcon -TargetDbCon $targetDbcon
 Set-ExternalFileFormat -SourceDbcon $sourceDbcon -TargetDbCon $targetDbcon
 
@@ -214,7 +195,6 @@ Export-SchemaDDLStatements -Dbcon $targetDbcon -OutputDirectory 'c:\temp' -Split
 
 Disconnect-SqlServer -sqlConnection $sourceDbcon
 Disconnect-SqlServer -sqlConnection $targetDbcon
-
 
 
 $taskTime = "Task took(HH:MM:SS:MS) "+(New-TimeSpan -Start $date1 -End (get-date))
